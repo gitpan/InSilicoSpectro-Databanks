@@ -1,0 +1,18 @@
+Changes
+MANIFEST
+META.yml # Will be created by "make dist"
+Makefile.PL
+README
+META.yml
+Makefile.PL
+README
+cgi/cgiUniprotEntry.pl
+lib/InSilicoSpectro/Databanks.pm
+lib/InSilicoSpectro/Databanks/DBEntry.pm
+lib/InSilicoSpectro/Databanks/DBEntryUniprot.pm
+t/DBEntry.t
+t/DBEntryUniprot.t
+t/DBUniprot.t
+t/00-load.t
+t/pod-coverage.t
+t/pod.t
