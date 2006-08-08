@@ -42,7 +42,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 =head1 AUTHORS
 
-Alexandre Masselot, Roman Mylonas, www.genebio.com
+Alexandre Masselot, www.genebio.com
 
 =cut
 
@@ -234,7 +234,7 @@ EOT
     }
     print <<EOT;
     <script language="JavaScript" type="text/javascript" src="/js/wz_tooltip.js"></script>
-    <hr width="66%"/>visit <a href="http://insilicospectro.vital-it.ch">http://insilicospectro.vital-it.ch</a> or download the soft from <a href=2http://search.cpan.org/search?mode=module;query=InSilicoSpectro::Databanks">CPAN</a>
+    <hr width="66%"/>visit <a href="http://insilicospectro.vital-it.ch">http://insilicospectro.vital-it.ch</a> or download the soft from <a href="http://search.cpan.org/search?mode=module;query=InSilicoSpectro::Databanks">CPAN</a>
   </body>
 </html>
 EOT

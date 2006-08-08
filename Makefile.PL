@@ -5,11 +5,13 @@ WriteMakefile
           'NAME' => 'InSilicoSpectro::Databanks',
           'VERSION_FROM' => './lib/InSilicoSpectro/Databanks.pm',
           'PREREQ_PM' => {
-                           'LWP::Simple' => 0,
-                           'Class::Std' => 0
+                           'Class::Std' => 0,
+                           'LWP::Simple' => 0
                          },
           'INSTALLDIRS' => 'site',
-          'EXE_FILES' => [],
+          'EXE_FILES' => [
+                           'scripts/uniprotdat2fasta.pl'
+                         ],
           'PL_FILES' => {}
         )
 ;

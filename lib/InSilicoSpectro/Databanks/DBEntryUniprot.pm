@@ -86,6 +86,11 @@ read info from fasta contents (fitrs line with '>' and info + remaining is seque
 
 =head1 EXAMPLES
 
+=head1 EXPORT
+
+=head3 $VERBOSE
+
+verbose level
 
 =head1 SEE ALSO
 
@@ -117,7 +122,9 @@ use InSilicoSpectro::Databanks::DBEntry;
 our (@ISA, @EXPORT, @EXPORT_OK);
 @ISA = qw(InSilicoSpectro::Databanks::DBEntry);
 
-@EXPORT = qw(&useInSilicoSpectro);
+our $VERBOSE=0;
+
+@EXPORT = qw(&useInSilicoSpectro $VERBOSE);
 @EXPORT_OK = ();
 
 use File::Basename;
@@ -193,6 +200,7 @@ sub useInSilicoSpectro{
   };
   if($@){
     warn "will not use InSilicoSpectro module & definitions";
+    warn "$@";
     $isUsingInSilicoSpectro=0;
   }
   return $isUsingInSilicoSpectro;
@@ -256,7 +264,7 @@ sub readDat{
       if(useInSilicoSpectro){
 	my $mr=InSilicoSpectro::InSilico::ModRes::getModifFromSprotFT($str);
 	unless ($mr){
-	  carp "cannot retrieve mod res from annotation [$str]";
+	  carp "cannot retrieve mod res from annotation [$str]" if $VERBOSE>=1;
 	  next;
 	}
 	$self->add_annotatedModRes($p, $mr->get('name'));
@@ -285,7 +293,7 @@ sub readDat{
   if($self->{FTLines}{VAR_SEQ}){
     foreach my $ftl (@{$self->{FTLines}{VAR_SEQ}}){
       my @isof= $ftl->{comment}=~/(?<=isoform)\s+(\w+)/gi;
-      carp "cannot parse isoform labels from [$ftl->{comment}] for ".$self->AC unless @isof;
+      carp "cannot parse VAR_SPLIC labels from [$ftl->{comment}] for ".$self->AC unless @isof;
       my $substr;
       if($ftl->{comment}=~/Missing/i){
 	
@@ -317,8 +325,17 @@ sub readDat{
 
   if($self->{FTLines}{VARIANT}){
     foreach my $ftl (@{$self->{FTLines}{VARIANT}}){
-      croak "cannot parse variant info from [$ftl->{comment}] for ".$self->AC unless $ftl->{comment}=~/([A-Z]+)\s+\->\s+([A-Z]+)/;
-      $self->add_variant($ftl->{from}, $1, $2);
+      if($ftl->{comment}=~/([A-Z]+)\s+\->\s+([\*A-Z]+)/){
+	$self->add_variant($ftl->{from}, $1, $2);
+      }elsif($ftl->{comment}=~/Missing/i){
+	my $tmp='';
+	foreach ($ftl->{from}..$ftl->{to}){
+	  $tmp.='.';
+	}
+	$self->add_variant($ftl->{from}, $tmp, '');
+      }else{
+	carp "cannot parse VARIANT info from [$ftl->{comment}] for ".$self->AC;
+      }
     }
   }
 
