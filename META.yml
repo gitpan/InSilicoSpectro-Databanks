@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name: InSilicoSpectro-Databanks
-version: 0.0.4
+version: 0.0.5
 author:
   - |-
     Alexandre Masselot <alexandre.masselot@genebio.com>
@@ -17,7 +17,7 @@ recommends:
 provides:
   InSilicoSpectro::Databanks:
     file: lib/InSilicoSpectro/Databanks.pm
-    version: 0.0.4
+    version: 0.0.5
   InSilicoSpectro::Databanks::DBEntry:
     file: lib/InSilicoSpectro/Databanks/DBEntry.pm
   InSilicoSpectro::Databanks::DBEntryUniprot:

@@ -25,14 +25,20 @@ my $f='/data/databases/uniprot_sprot/src/uniprot_sprot.dat';
 open (FD, "<$f") or die "cannot open [$f]: $!";
 $/="//\n";
 
-use Term::ProgressBar;
-my $size=(stat $f)[7];
-my $pg=Term::ProgressBar->new ({count=>$size});
+my ($pg);
+eval{
+  if (-t STDIN && -t STDOUT){
+    require Term::ProgressBar;
+    my $size=(stat $f)[7];
+    $pg=Term::ProgressBar->new ({count=>$size});
+  }
+};
+
 my $nextpgupdate;
 my $readsize;
 while (<FD>){
   $readsize+=length $_;
-  $nextpgupdate=$pg->update($readsize) if $readsize>$nextpgupdate;
+  $nextpgupdate=$pg->update($readsize) if $pg && $readsize>$nextpgupdate;
   my $dbu=InSilicoSpectro::Databanks::DBEntryUniprot->new;
   $dbu->readDat($_);
 }
