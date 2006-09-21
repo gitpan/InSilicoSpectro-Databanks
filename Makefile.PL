@@ -5,8 +5,8 @@ WriteMakefile
           'NAME' => 'InSilicoSpectro::Databanks',
           'VERSION_FROM' => './lib/InSilicoSpectro/Databanks.pm',
           'PREREQ_PM' => {
-                           'Class::Std' => 0,
-                           'LWP::Simple' => 0
+                           'Class::Std' => '0',
+                           'LWP::Simple' => '0'
                          },
           'INSTALLDIRS' => 'site',
           'EXE_FILES' => [

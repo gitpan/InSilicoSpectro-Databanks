@@ -130,7 +130,7 @@ while (<FDIN>){
   $nextpgupdate=$pg->update($readsize) if $pg && $readsize>$nextpgupdate;
   my $dbu=InSilicoSpectro::Databanks::DBEntryUniprot->new;
   $dbu->readDat($_);
-  if($noDerivedForm){
+  unless($noDerivedForm){
     my @tmp=$dbu->generateDerivedForms();
     foreach (@tmp){
       $_->printFasta;

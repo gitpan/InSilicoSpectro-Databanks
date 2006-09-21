@@ -1,12 +1,12 @@
---- #YAML:1.0
+---
 name: InSilicoSpectro-Databanks
-version: 0.0.5
+version: 0.0.7
 author:
-  - |-
-    Alexandre Masselot <alexandre.masselot@genebio.com>
-abstract: |-
-  parsing protein/nucleotides sequence databanks (fasta, uniprot...)
+  - 'Alexandre Masselot <alexandre.masselot@genebio.com>'
+abstract: 'parsing protein/nucleotides sequence databanks (fasta, uniprot...)'
 license: lgpl
+resources:
+  license: http://opensource.org/licenses/artistic-license.php
 requires:
   Class::Std: 0
   LWP::Simple: 0
@@ -17,9 +17,12 @@ recommends:
 provides:
   InSilicoSpectro::Databanks:
     file: lib/InSilicoSpectro/Databanks.pm
-    version: 0.0.5
+    version: 0.0.7
   InSilicoSpectro::Databanks::DBEntry:
     file: lib/InSilicoSpectro/Databanks/DBEntry.pm
   InSilicoSpectro::Databanks::DBEntryUniprot:
     file: lib/InSilicoSpectro/Databanks/DBEntryUniprot.pm
-generated_by: Module::Build version 0.24
+generated_by: Module::Build version 0.2805
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.2.html
+  version: 1.2

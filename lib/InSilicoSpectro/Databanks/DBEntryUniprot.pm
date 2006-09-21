@@ -58,9 +58,11 @@ Retuns an array of InSilicoSpectro::Databanks::DBEntry containing entries from F
 
 Retuns an array of InSilicoSpectro::Databanks::DBEntry containing entries from FT PEPTIDE lines
 
-=head3 $dbu->generateDerivedForms()
+=head3 $dbu->generateDerivedForms([skipIsoforms=>1][, skipChains=>1][, skipPeptides=>1)
 
 Retuns an array of InSilicoSpectro::Databanks::DBEntry containing entries from the concatenation of the above methods
+
+skip* argument will skip the creaion of the mentionned form
 
 =head3 $dbu->seqSubstr(from=>int, to=>int [, subseq=>AAstring]);
 
@@ -347,13 +349,15 @@ sub readDat{
 
 sub generateDerivedForms{
   my $self=shift;
+  my %hprms=@_;
 
   my @ret;
-  my @tmp=$self->generateChains();
+  my @tmp;
+  @tmp=$self->generateChains() unless $hprms{skipChains};
   push @ret, @tmp;
-  @tmp=$self->generateIsoforms();
+  @tmp=$self->generateIsoforms() unless $hprms{skipIsoforms};
   push @ret, @tmp;
-  @tmp=$self->generatePeptides();
+  @tmp=$self->generatePeptides() unless $hprms{skipPeptides};
   push @ret, @tmp;
   return @ret;
 }
