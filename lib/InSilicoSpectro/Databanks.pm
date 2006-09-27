@@ -9,11 +9,9 @@ InSilicoSpectro::Databanks - parsing protein/nucleotides sequence databanks (fas
 
 =head1 VERSION
 
-Version 0.0.7
-
 =cut
 
-our $VERSION = '0.0.8';
+our $VERSION = '0.0.9';
 
 =head1 SYNOPSIS
 
@@ -33,19 +31,6 @@ if you don't export anything, such as for a purely object-oriented module.
 
 =head1 FUNCTIONS
 
-=head2 function1
-
-=cut
-
-sub function1 {
-}
-
-=head2 function2
-
-=cut
-
-sub function2 {
-}
 
 =head1 AUTHOR
 

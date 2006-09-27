@@ -368,7 +368,7 @@ sub generateIsoforms{
 
   foreach my $isoform (sort keys %{$self->{VAR_SEQ}}){
     my $isoseq=InSilicoSpectro::Databanks::DBEntryUniprot->new($self);
-    $isoseq->AC($self->AC()."-$isoform");
+    $isoseq->AC($self->AC()."_ISOFORM_$isoform");
     $isoseq->ACorig($self->AC());
     $isoseq->description($self->description()." [ISOFORM $isoform])");
 

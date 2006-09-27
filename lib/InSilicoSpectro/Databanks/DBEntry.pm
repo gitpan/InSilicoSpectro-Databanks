@@ -297,7 +297,7 @@ sub printFasta{
   print " \\DE=".$self->description."\n";
   my $seq=$self->sequence();
   $seq=~s/(.{60})(?=.)/$1\n/g;
-  $seq=~s/(.{10})(?=.)/$1 /g;
+  #$seq=~s/(.{10})(?=.)/$1 /g;
 
   print $seq."\n";
 }
