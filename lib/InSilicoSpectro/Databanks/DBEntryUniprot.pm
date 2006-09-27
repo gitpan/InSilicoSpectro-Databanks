@@ -447,7 +447,7 @@ sub seqSubstr{
   }else{
     croak "cannot DBEntryUniprot::seqSubstr with paramer [@_] (either (from=>x, to=>y) or (pos=>x, len=>y) for ".$self->AC;
   }
-  $substr=$hprm{substr};
+  $substr=$hprm{substr} || '';
   my $seq=$self->sequence;
   $pos|=0;
   $seq=~s/(.{$pos}).{$len}/$1$substr/;

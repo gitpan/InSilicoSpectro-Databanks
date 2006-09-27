@@ -135,6 +135,9 @@ while (<FDIN>){
     foreach (@tmp){
       $_->printFasta;
     }
+    unless (@tmp){
+     $dbu->printFasta;
+   }
   }else{
     $dbu->printFasta;
   }

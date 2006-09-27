@@ -290,7 +290,7 @@ sub readFasta{
 
 sub printFasta{
   my $self=shift;
-  print ">".$self->AC()." \\ID=".$self->ID." \\MODRES=".$self->annotatedModRes();
+  print ">".$self->AC()." \\ID=".($self->ID|| '')." \\MODRES=".($self->annotatedModRes() ||'');
   print " \\VARIANT=".$self->variants if $self->variants;
   print " \\ACOR=".$self->ACorig if $self->ACorig;
   print " \\NCBITAXID=".$self->ncbiTaxid if $self->ncbiTaxid;
