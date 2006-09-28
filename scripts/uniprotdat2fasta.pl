@@ -131,13 +131,11 @@ while (<FDIN>){
   my $dbu=InSilicoSpectro::Databanks::DBEntryUniprot->new;
   $dbu->readDat($_);
   unless($noDerivedForm){
+    $dbu->printFasta;
     my @tmp=$dbu->generateDerivedForms();
     foreach (@tmp){
       $_->printFasta;
     }
-    unless (@tmp){
-     $dbu->printFasta;
-   }
   }else{
     $dbu->printFasta;
   }

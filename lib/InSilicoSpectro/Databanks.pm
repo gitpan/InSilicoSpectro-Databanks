@@ -11,7 +11,7 @@ InSilicoSpectro::Databanks - parsing protein/nucleotides sequence databanks (fas
 
 =cut
 
-our $VERSION = '0.0.9';
+our $VERSION = '0.0.10';
 
 =head1 SYNOPSIS
 
