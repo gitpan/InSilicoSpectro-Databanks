@@ -8,7 +8,7 @@ chdir $dir;
 
 use InSilicoSpectro::Databanks::DBEntry;
 
-my $dbe=new InSilicoSpectro::Databanks::DBEntry;
+my $dbe=InSilicoSpectro::Databanks::DBEntry->new;
 ok($dbe, "InSilicoSpectro::Databanks::DBEntry object instanciated");
 
 my $str=<<'EOT';

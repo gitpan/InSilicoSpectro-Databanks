@@ -121,399 +121,386 @@ Alexandre Masselot, www.genebio.com
 =cut
 
 use InSilicoSpectro::Databanks::DBEntry;
-our (@ISA, @EXPORT, @EXPORT_OK);
-@ISA = qw(InSilicoSpectro::Databanks::DBEntry);
-
-our $VERBOSE=0;
-
-@EXPORT = qw(&useInSilicoSpectro $VERBOSE);
-@EXPORT_OK = ();
-
 use File::Basename;
-use Class::Std;
 
-use Data::Dumper;
-
-our $isUsingInSilicoSpectro;
-
-our @attrArrays=qw(chain signal peptide);
-our $attrArraysStr=join '|', @attrArrays;
-our $attrArraysRE=qr/\b($attrArraysStr)\b/;
-our @attr=qw(chain signal);
-our $attrStr=join '|', @attr;
-our $attrRE=qr/\b($attrStr)\b/;
-
-sub new{
-  my ($pkg, $h)=@_;
-
-  my $dvar = $pkg->SUPER::new();
-
-  foreach (@attrArrays){
-    $dvar->{$_}=[];
+{
+  use Object::InsideOut qw(Exporter InSilicoSpectro::Databanks::DBEntry);
+  our $VERBOSE=0;
+  BEGIN{
+    our (@EXPORT, @EXPORT_OK);
+    @EXPORT = qw(&useInSilicoSpectro $VERBOSE);
+    @EXPORT_OK = ();
   }
 
-  foreach (keys %{$h}){
-    $dvar->{$_}= $h->{$_};
+  our $isUsingInSilicoSpectro;
+
+  our @attrArrays=qw(chain signal peptide);
+  our $attrArraysStr=join '|', @attrArrays;
+  our $attrArraysRE=qr/($attrArraysStr)/;
+
+  my @chains :Field(Accessor => 'chains', Type=>'List' );
+  my @signals :Field(Accessor => 'signals', Type=>'List' );
+  my @peptides :Field(Accessor => 'peptides', Type=>'List' );
+  my @__FTLines :Field(Accessor => '__FTLines', Type=>'Hash', Permission=>'Private' );
+  my @__VAR_SEQ :Field(Accessor => '__VAR_SEQ', Type=>'Hash', Permission=>'Private' );
+  my @__seqSubstr :Field(Accessor => '__seqSubstr', Type=>'List', Permission=>'Private' );
+
+
+  my %init_args :InitArgs = (
+			    );
+  sub _init :Init{
+    my ($self, $h) = @_;
+    $self->chains([]);
+    $self->signals([]);
+    $self->peptides([]);
+    return $self;
   }
 
 
-  bless $dvar, $pkg;
-  return $dvar;
-}
 
+  sub _automethod :Automethod{
+    my ($self, $val) = @_;
 
+    my $set=exists $_[1];
+    my $name=$_;
 
+    if ($name=~/add_($attrArraysStr)/) {
+      $name=$1."s";
+      return sub {
+	croak "must give a value to add to the array [$name]" unless defined $val;
+	push @{$self->$name()}, $val;
+      };
+      return sub {return $self->{$name}};
+    } elsif ($name=~/clear_((?:$attrArraysStr)(?:s)?)$/) {
+      $name=$1;
+      
+      return sub {$self->$name([]);return $self;}
+    }
+  }
 
-sub AUTOMETHOD{
-  my ($self, $ident, $val)=@_;
-  my $set=exists $_[2];
+  ################ Functions
 
-  my $name=$_;
-  if($name=~/add_($attrArraysStr)/){
-    $name=$1;
-    return sub {
-      croak "must give a value to add to the array [$name]" unless defined $val;
-      push @{$self->{$name}}, $val;
+  sub useInSilicoSpectro{
+    return $isUsingInSilicoSpectro if defined $isUsingInSilicoSpectro;
+    eval{
+      require InSilicoSpectro;
+      InSilicoSpectro::init();
+      $isUsingInSilicoSpectro=1;
     };
-    return sub {return $self->{$name}};
-  }elsif($name=~/($attrArraysStr)s/){
-    $name=$1;
-    return sub {$self->{$name}=$val; return $val} if($set);
-    return sub {return wantarray?@{$self->{$name}}:$self->{$name}};
-  }elsif($name=~/clear_($attrArraysStr)s/){
-    $name=$1;
-    return sub {$self->{$name}=[]};
-  }elsif( $name=~$attrRE){
-    return sub {$self->{$name}=$val; return $val} if($set);
-    return sub {return $self->{$name}};
-  }else{
-    return undef;
-  }
-}
-
-################ Functions
-
-sub useInSilicoSpectro{
-  return $isUsingInSilicoSpectro if defined $isUsingInSilicoSpectro;
-  eval{
-    require InSilicoSpectro;
-    InSilicoSpectro::init();
-    $isUsingInSilicoSpectro=1;
-  };
-  if($@){
-    warn "will not use InSilicoSpectro module & definitions";
-    warn "$@";
-    $isUsingInSilicoSpectro=0;
-  }
-  return $isUsingInSilicoSpectro;
-}
-
-# I/O
-sub readDat{
-  my $self=shift;
-  my $dat=shift;
-  my ($seq, $recSeq, $curFTLine, $recFT);
-
-  $self->clear_chains();
-  $self->clear_signals();
-  $self->clear_annotatedModRes();
-  $self->clear_variants();
-  $self->{FTLines}={};
-  my $acRead;
-  my $descr;
-  foreach(split /\n/, $dat){
-    last if /^\/\//;
-    undef $curFTLine if substr($_, 3, 10)=~/\S/;
-
-    if ($recSeq){
-      $seq.=$_;
-      next;
+    if ($@) {
+      warn "will not use InSilicoSpectro module & definitions";
+      warn "$@";
+      $isUsingInSilicoSpectro=0;
     }
-    if($curFTLine){
-      croak "recording FT line is on and line does not match /^FT\\s+/" unless s/^FT\s+//;
-      $curFTLine->{comment}.=" $_";
-      next;
-    }
+    return $isUsingInSilicoSpectro;
+  }
 
-    if(/^ID\s+(\w+)/){
-      my $v=$1;
-      $self->ID($v);
-    }elsif(/^AC\s+(\w+)/ && ! $acRead){
-      my $v=$1;
-      $self->AC($v);
-      $acRead=1;
-    }elsif(/^DE\s+(.*)/){
-      $descr.=" " if $descr;
-      $descr.=$1;
-    }elsif(/^OX\s+NCBI_TaxID=(\d+);/){
-      my $v=$1;
-      $self->ncbiTaxid($v);
-    }elsif(/^FT\s+CHAIN\s+(\d+)\s+(\d+)/){
-      my($to, $from)=($1, $2);
-      $self->add_chain([$to, $from]);
-    }elsif(/^FT\s+SIGNAL\s+(\d+)\s+(\d+)/){
-      my($to, $from)=($1, $2);
-      $self->add_signal([$to, $from]);
-    }elsif(/^FT\s+PEPTIDE\s+(\d+)\s+(\d+)/){
-      my($to, $from)=($1, $2);
-      $self->add_peptide([$to, $from]);
-    }elsif(/^FT\s+MOD_RES\s+(\d+)\s+(\d+)\s+(.*)/){
-      if($2!=$1){
-	carp "cannot handle multi-position FT MOD_RES: $_";
+  # I/O
+  sub readDat{
+    my $self=shift;
+    my $dat=shift;
+    my ($seq, $recSeq, $curFTLine, $recFT);
+
+    $self->clear_chains();
+    $self->clear_signals();
+    $self->clear_annotatedModRes();
+    $self->clear_variants();
+    $self->__FTLines({});
+    my $acRead;
+    my $descr;
+    foreach (split /\n/, $dat) {
+      last if /^\/\//;
+      undef $curFTLine if substr($_, 3, 10)=~/\S/;
+
+      if ($recSeq) {
+	$seq.=$_;
 	next;
       }
-      my ($p, $str)=($1, $3);
-      if(useInSilicoSpectro){
-	my $mr=InSilicoSpectro::InSilico::ModRes::getModifFromSprotFT($str);
-	unless ($mr){
-	  carp "cannot retrieve mod res from annotation [$str]" if $VERBOSE>=1;
+      if ($curFTLine) {
+	croak "recording FT line is on and line does not match /^FT\\s+/" unless s/^FT\s+//;
+	$curFTLine->{comment}.=" $_";
+	next;
+      }
+
+      if (/^ID\s+(\w+)/) {
+	my $v=$1;
+	$self->ID($v);
+      } elsif (/^AC\s+(\w+)/ && ! $acRead) {
+	my $v=$1;
+	$self->AC($v);
+	$acRead=1;
+      } elsif (/^DE\s+(.*)/) {
+	$descr.=" " if $descr;
+	$descr.=$1;
+      } elsif (/^OX\s+NCBI_TaxID=(\d+);/) {
+	my $v=$1;
+	$self->ncbiTaxid($v);
+      } elsif (/^FT\s+CHAIN\s+(\d+)\s+(\d+)/) {
+	my($to, $from)=($1, $2);
+	$self->add_chain([$to, $from]);
+      } elsif (/^FT\s+SIGNAL\s+(\d+)\s+(\d+)/) {
+	my($to, $from)=($1, $2);
+	$self->add_signal([$to, $from]);
+      } elsif (/^FT\s+PEPTIDE\s+(\d+)\s+(\d+)/) {
+	my($to, $from)=($1, $2);
+	$self->add_peptide([$to, $from]);
+      } elsif (/^FT\s+MOD_RES\s+(\d+)\s+(\d+)\s+(.*)/) {
+	if ($2!=$1) {
+	  carp "cannot handle multi-position FT MOD_RES: $_";
 	  next;
 	}
-	$self->add_annotatedModRes($p, $mr->get('name'));
-      }else{
-	$self->add_annotatedModRes($p, $str);
-      }
-    }elsif(/^FT\s+(VAR_SEQ|VARIANT)\s+(\d+)\s+(\d+)\s+(.*)/){
-      my ($ft, $p1, $p2, $com)=($1, $2, $3, $4);
-      $curFTLine={
-		  from=>$2,
-		  to=>$3,
-		  comment=>$4
-		 };
-      push @{$self->{FTLines}{$1}}, $curFTLine;
-    }elsif(/^SQ/){
-      $recSeq=1;
-    }
-  }
-  $self->sequence($seq);
-  $self->description($descr);
-
-  #rescan $self->{FTLines}
-  #to put back $self->{seqSubstr} info together with isoform labels
-  delete $self->{VAR_SEQ};
-  $self->{seqSubstr}=[];
-  if($self->{FTLines}{VAR_SEQ}){
-    foreach my $ftl (@{$self->{FTLines}{VAR_SEQ}}){
-      my @isof= $ftl->{comment}=~/(?<=isoform)\s+(\w+)/gi;
-      carp "cannot parse VAR_SPLIC labels from [$ftl->{comment}] for ".$self->AC unless @isof;
-      my $substr;
-      if($ftl->{comment}=~/Missing/i){
-	
-      }elsif($ftl->{comment}=~/\w+\s*\->\s*([A-Z ]+)/){
-	$substr=$1;
-	$substr=~s/\s+//g;
-      }else{
-	carp "unparsable for Missing or subst FT VAR_SEQ comment: [$ftl->{comment}] for ".$self->AC;
-      }
-      my $h={
-	     from=> $ftl->{from},
-	     to=>$ftl->{to},
-	     substr=>$substr,
-	    };
-      my $idx=scalar @{$self->{seqSubstr}};
-      foreach(@isof){
-	push @{$self->{VAR_SEQ}{$_}{seqSubstrIndex}}, $idx;
-      }
-      push @{$self->{seqSubstr}}, $h;
-    }
-    #reorder sub annotation to be in position decreasing order (to keep coherence)
-    foreach (values %{$self->{VAR_SEQ}}){
-      my @tmp=@{$_->{seqSubstrIndex}};
-      @tmp=sort {$self->{seqSubstr}[$b]{from} <=> $self->{seqSubstr}[$a]{from}} @tmp;
-      $_->{seqSubstrIndex}=\@tmp;
-    }
-    #@{$self->{seqSubstr}}=sort {$b->{from} <=> $a->{from}} @{$self->{seqSubstr}};
-  }
-
-  if($self->{FTLines}{VARIANT}){
-    foreach my $ftl (@{$self->{FTLines}{VARIANT}}){
-      if($ftl->{comment}=~/([A-Z]+)\s+\->\s+([\*A-Z]+)/){
-	$self->add_variant($ftl->{from}, $1, $2);
-      }elsif($ftl->{comment}=~/Missing/i){
-	my $tmp='';
-	foreach ($ftl->{from}..$ftl->{to}){
-	  $tmp.='.';
+	my ($p, $str)=($1, $3);
+	if (useInSilicoSpectro) {
+	  my $mr=InSilicoSpectro::InSilico::ModRes::getModifFromSprotFT($str);
+	  unless ($mr){
+	    carp "cannot retrieve mod res from annotation [$str]" if $VERBOSE>=1;
+	    next;
+	  }
+	  $self->add_annotatedModRes($p, $mr->get('name'));
+	} else {
+	  $self->add_annotatedModRes($p, $str);
 	}
-	$self->add_variant($ftl->{from}, $tmp, '');
-      }else{
-	carp "cannot parse VARIANT info from [$ftl->{comment}] for ".$self->AC;
+      } elsif (/^FT\s+(VAR_SEQ|VARIANT)\s+(\d+)\s+(\d+)\s+(.*)/) {
+	my ($ft, $p1, $p2, $com)=($1, $2, $3, $4);
+	$curFTLine={
+		    from=>$2,
+		    to=>$3,
+		    comment=>$4
+		   };
+	push @{$self->__FTLines->{$1}}, $curFTLine;
+      } elsif (/^SQ/) {
+	$recSeq=1;
+      }
+    }
+    $self->sequence($seq);
+    $self->description($descr);
+
+    #rescan $self->{FTLines}
+    #to put back $self->{seqSubstr} info together with isoform labels
+    $self->__VAR_SEQ({});
+    $self->__seqSubstr([]);
+    if ($self->__FTLines->{VAR_SEQ}) {
+      foreach my $ftl (@{$self->__FTLines->{VAR_SEQ}}) {
+	my @isof= $ftl->{comment}=~/(?<=isoform)\s+(\w+)/gi;
+	carp "cannot parse VAR_SPLIC labels from [$ftl->{comment}] for ".$self->AC unless @isof;
+	my $substr;
+	if ($ftl->{comment}=~/Missing/i) {
+	
+	} elsif ($ftl->{comment}=~/\w+\s*\->\s*([A-Z ]+)/) {
+	  $substr=$1;
+	  $substr=~s/\s+//g;
+	} else {
+	  carp "unparsable for Missing or subst FT VAR_SEQ comment: [$ftl->{comment}] for ".$self->AC;
+	}
+	my $h={
+	       from=> $ftl->{from},
+	       to=>$ftl->{to},
+	       substr=>$substr,
+	      };
+	my $idx=scalar @{$self->__seqSubstr};
+	foreach (@isof) {
+	  push @{$self->__VAR_SEQ->{$_}{seqSubstrIndex}}, $idx;
+	}
+	push @{$self->__seqSubstr}, $h;
+      }
+      #reorder sub annotation to be in position decreasing order (to keep coherence)
+      foreach (values %{$self->__VAR_SEQ}) {
+	my @tmp=@{$_->{seqSubstrIndex}};
+	@tmp=sort {$self->__seqSubstr->[$b]{from} <=> $self->__seqSubstr->[$a]{from}} @tmp;
+	$_->{seqSubstrIndex}=\@tmp;
+      }
+      #@{$self->{seqSubstr}}=sort {$b->{from} <=> $a->{from}} @{$self->{seqSubstr}};
+    }
+
+    if ($self->__FTLines->{VARIANT}) {
+      foreach my $ftl (@{$self->__FTLines->{VARIANT}}) {
+	if ($ftl->{comment}=~/([A-Z]+)\s+\->\s+([\*A-Z]+)/) {
+	  $self->add_variant($ftl->{from}, $1, $2);
+	} elsif ($ftl->{comment}=~/Missing/i) {
+	  my $tmp='';
+	  foreach ($ftl->{from}..$ftl->{to}) {
+	    $tmp.='.';
+	  }
+	  $self->add_variant($ftl->{from}, $tmp, '');
+	} else {
+	  carp "cannot parse VARIANT info from [$ftl->{comment}] for ".$self->AC;
+	}
+      }
+    }
+
+    $self->__FTLines({});
+  }
+
+
+  ################### Derived sequence generation ################3
+
+  sub generateDerivedForms{
+    my $self=shift;
+    my %hprms=@_;
+
+    my @ret;
+    my @tmp;
+    @tmp=$self->generateChains($hprms{shortName}) unless $hprms{skipChains};
+    push @ret, @tmp;
+    @tmp=$self->generateIsoforms($hprms{shortName}) unless $hprms{skipIsoforms};
+    push @ret, @tmp;
+    @tmp=$self->generatePeptides($hprms{shortName}) unless $hprms{skipPeptides};
+    push @ret, @tmp;
+    return @ret;
+  }
+
+  sub generateIsoforms{
+    my $self=shift;
+    my $shortName=shift;
+    my @isoforms;
+
+    my $counter=0;
+    foreach my $isoform (sort keys %{$self->__VAR_SEQ}) {
+      my $isoseq=$self->clone(1);
+      $isoseq->ACorig($self->AC());
+      $isoseq->AC($shortName ? $self->AC()."_I$counter" : $self->AC()."_ISOFORM_$isoform");
+      $counter++;
+      $isoseq->description($self->description()." [ISOFORM $isoform])");
+
+
+      $isoseq->__VAR_SEQ({});
+      #duplicate seqSubstr not to alter the original sequence
+      $isoseq->__seqSubstr([]);
+      if ($self->__seqSubstr) {
+	foreach (@{$self->__seqSubstr}) {
+	  my %h=%$_;
+	  push @{$isoseq->__seqSubstr}, \%h;
+	}
+      }
+
+      #    #remove seq outside the chain
+      #    if($isoseq->chain){
+      #      if($isoseq->chain()->[0]>1){
+      #	$isoseq->seqSubstr(from=>1, to=>$isoseq->chain()->[0]-1);
+      #      }
+      #    }
+      foreach my $idx (@{$self->__VAR_SEQ->{$isoform}{seqSubstrIndex}}) {
+	my %h=%{$isoseq->__seqSubstr->[$idx]};
+	$isoseq->seqSubstr(from=> $h{from}, to=>$h{to}, substr=>$h{substr});
+      }
+
+      #bless up to InSilicoSpectro::Databanks::DBEntry
+      bless $isoseq, "InSilicoSpectro::Databanks::DBEntry";
+      push @isoforms, $isoseq;
+    }
+    return @isoforms;
+  }
+
+  sub generatePeptides{
+    my $self=shift;
+    my $shortName=shift;
+    my @peptides;
+    my $i=0;
+    foreach my $pp (@{$self->peptides()}) {
+      my $pseq=InSilicoSpectro::Databanks::DBEntryUniprot->new($self);
+      $pseq->description($self->description()." [PEPTIDE $i])");
+      $pseq->ACorig($self->AC());
+      $pseq->AC($shortName ? $self->AC()."_P$i" : $self->AC()."_PEPT_$i");
+      $pseq->seqExtract(from=>$pp->[0], to=>$pp->[1]);
+      $i++;
+      push @peptides, $pseq;
+    }
+    return @peptides;
+  }
+
+
+  sub generateChains{
+    my $self=shift;
+    my $shortName=shift;
+    my @chains;
+    my $i=0;
+    foreach my $c (@{$self->chains()}) {
+      my $cseq=$self->clone(1);
+      $cseq->ACorig($self->AC());
+      $cseq->AC($shortName ? $self->AC()."_C$i" : $self->AC()."_CHAIN_$i");
+      $cseq->description($self->description()." [CHAIN $i])");
+      $cseq->seqExtract(from=>$c->[0], to=>$c->[1]);
+      $i++;
+      push @chains, $cseq;
+    }
+    return @chains;
+  }
+
+
+  sub seqSubstr{
+    my $self=shift;
+    my %hprm=@_;
+    my ($pos, $len, $substr);
+    if ($hprm{from} && $hprm{to}) {
+      $pos=$hprm{from}-1;
+      $len=$hprm{to}-$hprm{from}+1;
+    } elsif ((defined $hprm{pos}) && $hprm{len}) {
+      ($pos, $len)=($hprm{pos}, $hprm{len});
+    } else {
+      croak "cannot DBEntryUniprot::seqSubstr with paramer [@_] (either (from=>x, to=>y) or (pos=>x, len=>y) for ".$self->AC;
+    }
+    $substr=$hprm{substr} || '';
+    my $seq=$self->sequence;
+    $pos|=0;
+    $seq=~s/(.{$pos}).{$len}/$1$substr/;
+    $self->sequence($seq);
+    $self->updateAnnotPos($pos, $len);
+  }
+
+
+  sub seqExtract{
+    my $self=shift;
+    my %hprm=@_;
+    my ($pos, $len, $substr);
+    if ($hprm{from} && $hprm{to}) {
+      $pos=$hprm{from}-1;
+      $len=$hprm{to}-$hprm{from}+1;
+    } elsif ((defined $hprm{pos}) && $hprm{len}) {
+      ($pos, $len)=($hprm{pos}, $hprm{len});
+    } else {
+      croak "cannot DBEntryUniprot::seqSubstr with paramer [@_] (either (from=>x, to=>y) or (pos=>x, len=>y) for ".$self->AC;
+    }
+    my $lseq=length $self->sequence();
+    if ($lseq>($pos+$len)) {
+      $self->seqSubstr(from=>$pos+$len+1, to=>$lseq);
+    }
+    if ($pos>0) {
+      $self->seqSubstr(from=>1, to =>$pos);
+    }
+  }
+
+  sub updateAnnotPos{
+    my ($self, $pos, $len)=@_;
+    #shift or remove all annotated PTM
+    my @amr=$self->annotatedModRes?@{$self->annotatedModRes}:();
+    if (@amr) {
+      $self->clear_annotatedModRes;
+      foreach (@amr) {
+	my @tmp=@$_;
+	my $p=$tmp[0];
+	if ($p>=$pos) {
+	  $tmp[0]-=$len;
+	  $self->add_annotatedModRes(@tmp) if $tmp[0]>0;
+	} else {
+	  $self->add_annotatedModRes(@tmp);
+	}
+      }
+    }
+    @amr=$self->variants;
+    if (@amr) {
+      $self->clear_variants;
+      foreach (@amr) {
+	my @tmp=@$_;
+	my $p=$tmp[0];
+	if ($p>=$pos) {
+	  $tmp[0]-=$len;
+	  $self->add_variant(@tmp) if $tmp[0]>0;
+	} else {
+	  $self->add_variant(@tmp);
+	}
       }
     }
   }
 
-  undef $self->{FTLines};
 }
-
-
-################### Derived sequence generation ################3
-
-sub generateDerivedForms{
-  my $self=shift;
-  my %hprms=@_;
-
-  my @ret;
-  my @tmp;
-  @tmp=$self->generateChains($hprms{shortName}) unless $hprms{skipChains};
-  push @ret, @tmp;
-  @tmp=$self->generateIsoforms($hprms{shortName}) unless $hprms{skipIsoforms};
-  push @ret, @tmp;
-  @tmp=$self->generatePeptides($hprms{shortName}) unless $hprms{skipPeptides};
-  push @ret, @tmp;
-  return @ret;
-}
-
-sub generateIsoforms{
-  my $self=shift;
-  my $shortName=shift;
-  my @isoforms;
-
-  my $counter=0;
-  foreach my $isoform (sort keys %{$self->{VAR_SEQ}}){
-    my $isoseq=InSilicoSpectro::Databanks::DBEntryUniprot->new($self);
-    $isoseq->ACorig($self->AC());
-    $isoseq->AC($shortName ? $self->AC()."_I$counter" : $self->AC()."_ISOFORM_$isoform");
-    $counter++;
-    $isoseq->description($self->description()." [ISOFORM $isoform])");
-
-
-    delete $isoseq->{VAR_SEQ};
-    #duplicate seqSubstr not to alter the original sequence
-    delete $isoseq->{seqSubstr};
-    if($self->{seqSubstr}){
-      foreach(@{$self->{seqSubstr}}){
-	my %h=%$_;
-	push @{$isoseq->{seqSubstr}}, \%h;
-      }
-    }
-
-#    #remove seq outside the chain
-#    if($isoseq->chain){
-#      if($isoseq->chain()->[0]>1){
-#	$isoseq->seqSubstr(from=>1, to=>$isoseq->chain()->[0]-1);
-#      }
-#    }
-    foreach my $idx(@{$self->{VAR_SEQ}{$isoform}{seqSubstrIndex}}){
-      my %h=%{$isoseq->{seqSubstr}[$idx]};
-      $isoseq->seqSubstr(from=> $h{from}, to=>$h{to}, substr=>$h{substr});
-    }
-
-    #bless up to InSilicoSpectro::Databanks::DBEntry
-    bless $isoseq, "InSilicoSpectro::Databanks::DBEntry";
-    push @isoforms, $isoseq;
-  }
-  return @isoforms;
-}
-
-sub generatePeptides{
-  my $self=shift;
-  my $shortName=shift;
-  my @peptides;
-  my $i=0;
-  foreach my $pp (@{$self->peptides()}){
-    my $pseq=InSilicoSpectro::Databanks::DBEntryUniprot->new($self);
-    $pseq->description($self->description()." [PEPTIDE $i])");
-    $pseq->ACorig($self->AC());
-    $pseq->AC($shortName ? $self->AC()."_P$i" : $self->AC()."_PEPT_$i");
-    $pseq->seqExtract(from=>$pp->[0], to=>$pp->[1]);
-    $i++;
-    push @peptides, $pseq;
-  }
-  return @peptides;
-}
-
-
-sub generateChains{
-  my $self=shift;
-  my $shortName=shift;
-  my @chains;
-  my $i=0;
-  foreach my $c (@{$self->chains()}){
-    my $cseq=InSilicoSpectro::Databanks::DBEntryUniprot->new($self);
-    $cseq->ACorig($self->AC());
-    $cseq->AC($shortName ? $self->AC()."_C$i" : $self->AC()."_CHAIN_$i");
-    $cseq->description($self->description()." [CHAIN $i])");
-    $cseq->seqExtract(from=>$c->[0], to=>$c->[1]);
-    $i++;
-    push @chains, $cseq;
-  }
-  return @chains;
-}
-
-
-sub seqSubstr{
-  my $self=shift;
-  my %hprm=@_;
-  my ($pos, $len, $substr);
-  if($hprm{from} && $hprm{to}){
-    $pos=$hprm{from}-1;
-    $len=$hprm{to}-$hprm{from}+1;
-  }elsif((defined $hprm{pos}) && $hprm{len}){
-    ($pos, $len)=($hprm{pos}, $hprm{len});
-  }else{
-    croak "cannot DBEntryUniprot::seqSubstr with paramer [@_] (either (from=>x, to=>y) or (pos=>x, len=>y) for ".$self->AC;
-  }
-  $substr=$hprm{substr} || '';
-  my $seq=$self->sequence;
-  $pos|=0;
-  $seq=~s/(.{$pos}).{$len}/$1$substr/;
-  $self->sequence($seq);
-  $self->updateAnnotPos($pos, $len);
-}
-
-
-sub seqExtract{
-  my $self=shift;
-  my %hprm=@_;
-  my ($pos, $len, $substr);
-  if($hprm{from} && $hprm{to}){
-    $pos=$hprm{from}-1;
-    $len=$hprm{to}-$hprm{from}+1;
-  }elsif((defined $hprm{pos}) && $hprm{len}){
-    ($pos, $len)=($hprm{pos}, $hprm{len});
-  }else{
-    croak "cannot DBEntryUniprot::seqSubstr with paramer [@_] (either (from=>x, to=>y) or (pos=>x, len=>y) for ".$self->AC;
-  }
-  my $lseq=length $self->sequence();
-  if($lseq>($pos+$len)){
-    $self->seqSubstr(from=>$pos+$len+1, to=>$lseq);
-  }
-  if($pos>0){
-    $self->seqSubstr(from=>1, to =>$pos);
-  }
-}
-
-sub updateAnnotPos{
-  my ($self, $pos, $len)=@_;
-  #shift or remove all annotated PTM
-  my @amr=$self->annotatedModRes;
-  if(@amr){
-    $self->clear_annotatedModRes;
-    foreach (@amr){
-      my @tmp=@$_;
-      my $p=$tmp[0];
-      if($p>=$pos){
-	$tmp[0]-=$len;
-	$self->add_annotatedModRes(@tmp) if $tmp[0]>0;
-      }else{
-	$self->add_annotatedModRes(@tmp);
-      }
-    }
-  }
-  @amr=$self->variants;
-  if(@amr){
-    $self->clear_variants;
-    foreach (@amr){
-      my @tmp=@$_;
-      my $p=$tmp[0];
-      if($p>=$pos){
-	$tmp[0]-=$len;
-	$self->add_variant(@tmp) if $tmp[0]>0;
-      }else{
-	$self->add_variant(@tmp);
-      }
-    }
-  }
-}
-
-
 return 1;
