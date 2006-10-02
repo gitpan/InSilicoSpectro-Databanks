@@ -9,9 +9,9 @@ uniprotdata2fasta.pl
 
 =head1 DESCRIPTION
 
-Read a uniprot .dat (sprot, trembl...) and convert it into a fasta file, expanding VAR_SPLIC, CHAIN, PEPT annotations.
+Reads a uniprot .dat (sprot, trembl...) and converts it into a fasta file, expanding VAR_SPLIC, CHAIN, PEPT annotations.
 
-FT annotation, such as MOD_RES, VARIANT... are kept in the fasta header coherently with the sequence modifictaion
+FT annotation, such as MOD_RES, VARIANT... are kept in the fasta header coherently with the sequence modification (recomputed location).
 
 =head1 SYNOPSIS
 
@@ -33,7 +33,27 @@ A .fasta file [default is stdout]
 
 =head3 --noderived
 
-does not produce the derived sequences (VAR_SEQ, CHAIN...)
+Does not produce the derived sequences, i.e. the chains, peptides and isoforms (VAR_SEQ, CHAIN...). Equivalent to call with -skipchains -skippeptides -skipisoforms.
+
+=head3 --skipchains
+
+Does not produce the chains.
+
+=head3 --skippeptides
+
+Does not produce the peptides.
+
+=head3 --skipisoforms
+
+Does not produce the isoforms.
+
+=head3 --skiporigsequence
+
+By default the original sequence is always added to the fasta file and then new sequences (chains, etc.) are added provided they are different. To avoid having the original sequence and to have annotated features only, use this flag.
+
+=head3 --shortname
+
+The additional sequences have ACs that are obtained by appending a text to the original AC. For Mascot it might be necessary to configure the system to accept longer ACs than it does by default. To avoid this you can use this flag and peptides will be named AC_Pi, chains AC_Ci, and isoforms AC_Ii, where i is an integer starting at 0 for each type of variant.
 
 =head3 --help
 
@@ -77,7 +97,7 @@ use SelectSaver;
 use File::Basename;
 
 use Getopt::Long;
-my($datFile, $fastaFile, $noDerivedForm, $help, $man, $verbose);
+my($datFile, $fastaFile, $noDerivedForm, $help, $man, $verbose, $skipChains, $skipIsoforms, $skipPeptides, $skipOrigSeq, $shortName);
 $datFile='-';
 $fastaFile='-';
 
@@ -86,6 +106,11 @@ if (!GetOptions(
 		"out=s" => \$fastaFile,
 
 		"noderived"=>\$noDerivedForm,
+		'skippeptides' => \$skipPeptides,
+		'skipchains' => \$skipChains,
+		'skipisoforms' => \$skipIsoforms,
+		'skiporigseq' => \$skipOrigSeq,
+		'shortname' => \$shortName,
 
                 "help" => \$help,
                 "man" => \$man,
@@ -128,18 +153,31 @@ $/="//\n";
 while (<FDIN>){
   $readsize+=length $_;
   $nextpgupdate=$pg->update($readsize) if $pg && $readsize>$nextpgupdate;
+  next unless /\S/;
   my $dbu=InSilicoSpectro::Databanks::DBEntryUniprot->new;
   $dbu->readDat($_);
-  unless($noDerivedForm){
-    $dbu->printFasta;
-    my @tmp=$dbu->generateDerivedForms();
-    foreach (@tmp){
-      $_->printFasta;
+#  if ($dbu->AC){
+    unless($noDerivedForm){
+      my %params;
+      $params{skipChains} = 1 if (defined($skipChains));
+      $params{skipPeptides} = 1 if (defined($skipPeptides));
+      $params{skipIsoforms} = 1 if (defined($skipIsoforms));
+      $params{shortName} = 1 if (defined($shortName));
+      my @tmp=$dbu->generateDerivedForms(%params);
+      my $origSeq;
+      unless (defined($skipOrigSeq) && @tmp){
+	$dbu->printFasta;
+	$origSeq = $dbu->sequence;
+      }
+      foreach (@tmp){
+	if ($_->sequence ne $origSeq){
+	  $_->printFasta;
+	}
+      }
+    }else{
+      $dbu->printFasta;
     }
-  }else{
-    $dbu->printFasta;
-  }
+#  }
 }
 $pg->update($size) if $pg;
 exit(0);
-

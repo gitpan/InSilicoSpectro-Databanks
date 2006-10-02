@@ -229,6 +229,7 @@ EOT
       <tr><td><b>description</b></td><td>".$dbu->description."</td></tr>
     </table>
 ";
+    $dbu-> printHtml;
     foreach (@derived){
       $_->printHtml;
     }
