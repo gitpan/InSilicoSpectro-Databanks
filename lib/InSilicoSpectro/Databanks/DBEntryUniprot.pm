@@ -398,7 +398,7 @@ use File::Basename;
     my @peptides;
     my $i=0;
     foreach my $pp (@{$self->peptides()}) {
-      my $pseq=InSilicoSpectro::Databanks::DBEntryUniprot->new($self);
+      my $pseq=$self->clone(1);
       $pseq->description($self->description()." [PEPTIDE $i])");
       $pseq->ACorig($self->AC());
       $pseq->AC($shortName ? $self->AC()."_P$i" : $self->AC()."_PEPT_$i");
@@ -473,7 +473,7 @@ use File::Basename;
   sub updateAnnotPos{
     my ($self, $pos, $len)=@_;
     #shift or remove all annotated PTM
-    my @amr=$self->annotatedModRes?@{$self->annotatedModRes}:();
+    my @amr=$self->annotatedModRes;
     if (@amr) {
       $self->clear_annotatedModRes;
       foreach (@amr) {

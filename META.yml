@@ -1,6 +1,6 @@
 ---
 name: InSilicoSpectro-Databanks
-version: 0.0.13
+version: 0.0.14
 author:
   - 'Alexandre Masselot <alexandre.masselot@genebio.com>'
 abstract: 'parsing protein/nucleotides sequence databanks (fasta, uniprot...)'
@@ -17,7 +17,7 @@ recommends:
 provides:
   InSilicoSpectro::Databanks:
     file: lib/InSilicoSpectro/Databanks.pm
-    version: 0.0.13
+    version: 0.0.14
   InSilicoSpectro::Databanks::DBEntry:
     file: lib/InSilicoSpectro/Databanks/DBEntry.pm
   InSilicoSpectro::Databanks::DBEntryUniprot:
