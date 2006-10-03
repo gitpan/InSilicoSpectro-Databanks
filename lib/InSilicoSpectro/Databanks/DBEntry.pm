@@ -121,13 +121,21 @@ use File::Basename;
 
   my %init_args :InitArgs = (
 			     AC=>'AC',
+			     COPY=>qr/^copy$/i,
 			    );
   sub _init :Init{
     my ($self, $h) = @_;
     $self->__annotatedModRes([]);
     $self->__variants([]);
-    foreach (keys %$h) {
-      $self->$_($h->{$_});
+    if($h->{COPY}){
+      my $src=$h->{COPY};
+      foreach(qw(AC ID ACorig __sequence description ncbiTaxid __annotatedModRes __variants)){
+	$self->$_($src->$_());
+      }
+    }else{
+      foreach (keys %$h) {
+	$self->$_($h->{$_});
+      }
     }
     return $self;
   };

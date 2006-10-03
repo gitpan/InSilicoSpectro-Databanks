@@ -7,22 +7,25 @@ use strict;
 
 InSilicoSpectro::Databanks - parsing protein/nucleotides sequence databanks (fasta, uniprot...)
 
-=head1 VERSION
-
-=cut
-
-our $VERSION = '0.0.12';
+ 
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
-
-Perhaps a little code snippet.
-
-    use InSilicoSpectro::Databanks;
-
-    my $foo = InSilicoSpectro::Databanks->new();
-    ...
+$/="//\n";
+while (<FDIN>){
+  my $dbu=InSilicoSpectro::Databanks::DBEntryUniprot->new;
+  $dbu->readDat($_);
+  my @tmp=$dbu->generateDerivedForms();
+  unless ( && @tmp){
+    $dbu->printFasta;
+    $origSeq = $dbu->sequence;
+  }
+  foreach (@tmp){
+    if ($_->sequence ne $origSeq){
+      $_->printFasta;
+    }
+  }
+}
 
 =head1 EXPORT
 
@@ -54,5 +57,7 @@ This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
 
 =cut
+
+our $VERSION = '0.0.13';
 
 1; # End of InSilicoSpectro::Databanks

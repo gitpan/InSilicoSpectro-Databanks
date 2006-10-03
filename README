@@ -2,16 +2,12 @@ NAME
     InSilicoSpectro::Databanks - parsing protein/nucleotides sequence
     databanks (fasta, uniprot...)
 
-VERSION
 SYNOPSIS
-    Quick summary of what the module does.
-
-    Perhaps a little code snippet.
-
-        use InSilicoSpectro::Databanks;
-
-        my $foo = InSilicoSpectro::Databanks->new();
-        ...
+    $/="//\n"; while (<FDIN>){ my
+    $dbu=InSilicoSpectro::Databanks::DBEntryUniprot->new; $dbu->readDat($_);
+    my @tmp=$dbu->generateDerivedForms(); unless ( && @tmp){
+    $dbu->printFasta; $origSeq = $dbu->sequence; } foreach (@tmp){ if
+    ($_->sequence ne $origSeq){ $_->printFasta; } } }
 
 EXPORT
     A list of functions that can be exported. You can delete this section if

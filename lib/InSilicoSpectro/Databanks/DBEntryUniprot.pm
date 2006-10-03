@@ -385,8 +385,9 @@ use File::Basename;
       }
 
       #bless up to InSilicoSpectro::Databanks::DBEntry
-      bless $isoseq, "InSilicoSpectro::Databanks::DBEntry";
-      push @isoforms, $isoseq;
+      #bless $isoseq, "InSilicoSpectro::Databanks::DBEntry";
+      my $dbe=InSilicoSpectro::Databanks::DBEntry->new(COPY=>$isoseq);
+      push @isoforms, $dbe;
     }
     return @isoforms;
   }

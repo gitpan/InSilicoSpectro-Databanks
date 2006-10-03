@@ -1,6 +1,6 @@
 ---
 name: InSilicoSpectro-Databanks
-version: 0.0.12
+version: 0.0.13
 author:
   - 'Alexandre Masselot <alexandre.masselot@genebio.com>'
 abstract: 'parsing protein/nucleotides sequence databanks (fasta, uniprot...)'
@@ -8,8 +8,8 @@ license: lgpl
 resources:
   license: http://opensource.org/licenses/artistic-license.php
 requires:
-  Class::Std: 0
   LWP::Simple: 0
+  Object::InsideOut: 0
   perl: 5.6.1
 recommends:
   Bio::Perl: 1.4
@@ -17,7 +17,7 @@ recommends:
 provides:
   InSilicoSpectro::Databanks:
     file: lib/InSilicoSpectro/Databanks.pm
-    version: 0.0.12
+    version: 0.0.13
   InSilicoSpectro::Databanks::DBEntry:
     file: lib/InSilicoSpectro/Databanks/DBEntry.pm
   InSilicoSpectro::Databanks::DBEntryUniprot:
