@@ -17,9 +17,13 @@ use InSilicoSpectro::Databanks::DBEntryUniprot;
 my $dbu=new InSilicoSpectro::Databanks::DBEntryUniprot;
 ok($dbu, "InSilicoSpectro::Databanks::DBEntryUniprot object instanciated");
 
-use InSilicoSpectro;
-InSilicoSpectro::init();
-
+eval{
+  require InSilicoSpectro;
+  InSilicoSpectro::init();
+};
+if($@){
+  warn "[WARNING]: $@\n";
+}
 
 my $f='/data/databases/uniprot_sprot/src/uniprot_sprot.dat';
 open (FD, "<$f") or die "cannot open [$f]: $!";

@@ -113,11 +113,14 @@ use File::Basename;
   my @AC :Field(Accessor => 'AC' );
   my @ID :Field(Accessor => 'ID' );
   my @ACorig :Field(Accessor => 'ACorig' );
+  my @dbName :Field(Accessor => 'dbName' );
   my @__sequence :Field(Accessor => '__sequence',  permission=>'Private');
   my @description :Field(Accessor => 'description' );
   my @ncbiTaxid :Field(Accessor => 'ncbiTaxid' );
   my @annotatedModRes :Field(Accessor => '__annotatedModRes', Type=>'List', permission=>'Private');
   my @variants :Field(Accessor => '__variants', Type=>'List', permission=>'Private');
+  my @PI :Field(Accessor => 'PI' );
+  my @mass :Field(Accessor => 'mass' );
 
   my %init_args :InitArgs = (
 			     AC=>'AC',

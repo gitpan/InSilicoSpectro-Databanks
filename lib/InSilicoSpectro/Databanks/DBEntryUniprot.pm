@@ -360,7 +360,7 @@ use File::Basename;
       $isoseq->ACorig($self->AC());
       $isoseq->AC($shortName ? $self->AC()."_I$counter" : $self->AC()."_ISOFORM_$isoform");
       $counter++;
-      $isoseq->description($self->description()." [ISOFORM $isoform])");
+      $isoseq->description($self->description()." [ISOFORM $isoform]");
 
 
       $isoseq->__VAR_SEQ({});
@@ -419,7 +419,7 @@ use File::Basename;
       my $cseq=$self->clone(1);
       $cseq->ACorig($self->AC());
       $cseq->AC($shortName ? $self->AC()."_C$i" : $self->AC()."_CHAIN_$i");
-      $cseq->description($self->description()." [CHAIN $i])");
+      $cseq->description($self->description()." [CHAIN $i]");
       $cseq->seqExtract(from=>$c->[0], to=>$c->[1]);
       $i++;
       push @chains, $cseq;
