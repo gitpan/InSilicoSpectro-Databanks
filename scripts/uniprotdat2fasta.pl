@@ -149,7 +149,7 @@ if ($fastaFile ne '-'){
 }
 
 
-$/="//\n";
+$/="\n//\n";
 while (<FDIN>){
   $readsize+=length $_;
   $nextpgupdate=$pg->update($readsize) if $pg && $readsize>$nextpgupdate;
