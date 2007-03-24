@@ -27,7 +27,19 @@ describes an databnk entry (header + sequence)
 
 =head3 $dbe->AC([val])
 
+get/set accession code
+
 =head3 $dbe->ID([val])
+
+get/set accession ID
+
+=head3 $dbe->dbName([val])
+
+[GS]et databank name
+
+=head3 $dbe->taxoID([val])
+
+[GS]et taxonomy if (typically NCBI taxid
 
 =head3 $dbe->description([val])
 
@@ -114,6 +126,7 @@ use File::Basename;
   my @ID :Field(Accessor => 'ID' );
   my @ACorig :Field(Accessor => 'ACorig' );
   my @dbName :Field(Accessor => 'dbName' );
+  my @taxoID :Field(Accessor => 'taxoID' );
   my @__sequence :Field(Accessor => '__sequence',  permission=>'Private');
   my @description :Field(Accessor => 'description' );
   my @ncbiTaxid :Field(Accessor => 'ncbiTaxid' );

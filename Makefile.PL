@@ -10,6 +10,7 @@ WriteMakefile
                          },
           'INSTALLDIRS' => 'site',
           'EXE_FILES' => [
+                           'scripts/databanks-decoy.pl',
                            'scripts/uniprotdat2fasta.pl'
                          ],
           'PL_FILES' => {}
