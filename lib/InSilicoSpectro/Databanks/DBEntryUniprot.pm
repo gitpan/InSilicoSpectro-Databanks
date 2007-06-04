@@ -281,7 +281,7 @@ use File::Basename;
     $self->__seqSubstr([]);
     if ($self->__FTLines->{VAR_SEQ}) {
       foreach my $ftl (@{$self->__FTLines->{VAR_SEQ}}) {
-	my @isof= $ftl->{comment}=~/(?<=isoform)\s+(\w+)/gi;
+	my @isof= $ftl->{comment}=~/(?<=isoform)\s+([\w\-]+)/gi;
 	carp "cannot parse VAR_SPLIC labels from [$ftl->{comment}] for ".$self->AC unless @isof;
 	my $substr;
 	if ($ftl->{comment}=~/Missing/i) {

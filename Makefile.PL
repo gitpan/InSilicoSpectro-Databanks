@@ -2,17 +2,17 @@
 use ExtUtils::MakeMaker;
 WriteMakefile
 (
-          'NAME' => 'InSilicoSpectro::Databanks',
-          'VERSION_FROM' => './lib/InSilicoSpectro/Databanks.pm',
-          'PREREQ_PM' => {
-                           'LWP::Simple' => '0',
-                           'Object::InsideOut' => '0'
-                         },
+          'PL_FILES' => {},
           'INSTALLDIRS' => 'site',
+          'NAME' => 'InSilicoSpectro::Databanks',
           'EXE_FILES' => [
-                           'scripts/databanks-decoy.pl',
+                           'scripts/fasta-decoy.pl',
                            'scripts/uniprotdat2fasta.pl'
                          ],
-          'PL_FILES' => {}
+          'VERSION_FROM' => './lib/InSilicoSpectro/Databanks.pm',
+          'PREREQ_PM' => {
+                           'LWP::Simple' => 0,
+                           'Object::InsideOut' => 0
+                         }
         )
 ;

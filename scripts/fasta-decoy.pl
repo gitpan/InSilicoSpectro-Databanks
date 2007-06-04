@@ -5,7 +5,7 @@ use Pod::Usage;
 
 =head1 NAME
 
-databanks-decoy.pl - decoy input databanks following several moethods
+fasta-decoy.pl - decoy input databanks following several moethods
 
 =head1 DESCRIPTION
 
@@ -26,13 +26,13 @@ Reads input fasta file and produce a decoyed databanks with several methods:
 =head1 SYNOPSIS
 
 #reverse sequences for a local (optionaly compressed) file
-databanks-decoys.pl --in=/tmp/uniprot_sprot.fasta.gz --method=reverse
+fasta-decoys.pl --in=/tmp/uniprot_sprot.fasta.gz --method=reverse
 
 #download databanks from the web | uncompress it and shuffle the sequence
 wget -silent -O - ftp://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz | zcat |  databatanks-decoy.pl --method=shuffle
 
 #use a .dat file (with splice forms) as an input
-uniprotdat2fasta.pl --in=uniprot_sprot_human.dat | databanks-decoy.pl --method=markovmodel
+uniprotdat2fasta.pl --in=uniprot_sprot_human.dat | fasta-decoy.pl --method=markovmodel
 
 
 =head1 ARGUMENTS
@@ -54,9 +54,17 @@ Set the decoying method
 
 =head2 --method=shuffle options
 
-=head3 --shuffle-ejectcleavedpeptides
+=head3 --shuffle-reshufflecleavedpeptides
 
 Re-shuffle peptides of size >=6 that where detected as cleaved one in original databank
+
+=head3 --shuffle-reshufflecleavedpeptides-minlength [default 6]
+
+Set the size of the peptide to be reshuffled is they already exist
+
+=head3 --shuffle-reshufflecleavedpeptides-crc=int
+
+Building a hash of known cleaved peptide can be quite demanding for memory (uniprot_rembl => ~4GB). Thereforea solution is to make an but array containing stating if or not a peptide with corresponding crc code was found.
 
 =head3 --shuffle-cleaveenzyme=regexp
 
@@ -117,13 +125,17 @@ Alexandre Masselot, www.genebio.com
 
 use SelectSaver;
 use File::Basename;
+use String::CRC;
+use Bit::Vector;
 use List::Util qw/shuffle/;
 
 use Getopt::Long;
 my ($method, $noProgressBar);
 
-my ($shuffle_ejectCleavPept, $shuffle_test);
+my ($shuffle_reshuffleCleavPept, $shuffle_test);
 my $shuffle_enzyme='(?<=[KR])(?=[^P])';
+my $shuffle_reshuffleCleavPept_minLength=6;
+my $shuffle_reshuffleCleavPept_CRCLen;
 
 my $inFile='-';
 my $outFile='-';
@@ -137,7 +149,10 @@ if (!GetOptions(
 
 		"method=s" => \$method,
 
-		"shuffle-ejectcleavedpeptides"=> \$shuffle_ejectCleavPept,
+		"shuffle-reshufflecleavedpeptides"=> \$shuffle_reshuffleCleavPept,
+		"shuffle-reshufflecleavedpeptides-minlength=i"=> \$shuffle_reshuffleCleavPept_minLength,
+		"shuffle-reshufflecleavedpeptides-crc=i"=> \$shuffle_reshuffleCleavPept_CRCLen,
+
 		"shuffle-testenzyme"=> \$shuffle_test,
 		"shuffle-cleaveenzyme"=> \$shuffle_enzyme,
 
@@ -154,26 +169,17 @@ if (!GetOptions(
   pod2usage(-verbose=>1, -exitval=>2);
 }
 
+my $maxBitCRC=1<<$shuffle_reshuffleCleavPept_CRCLen;
+if($shuffle_reshuffleCleavPept_CRCLen>=Bit::Vector->Long_Bits()){
+  die "no possible to ask for $shuffle_reshuffleCleavPept_CRCLen: max=".(Bit::Vector->Long_Bits()-1);
+}
+
 die "no --method=methodname argument (see --help)" unless $method;
 
 #init parsing progress bar
 my ($pg, $size, $nextpgupdate, $readsize);
 $readsize=0;
 $nextpgupdate=0;
-eval{
-  if ((!$noProgressBar) && ($inFile != /gz$/i) && ($inFile ne '-')&& -t STDIN && -t STDOUT){
-    require Term::ProgressBar;
-    $size=(stat $inFile)[7];
-    $pg=Term::ProgressBar->new ({name=> "parsing ".basename($inFile),
-				 count=>$size,
-				 ETA=>'linear',
-				 remove=>1
-				});
-  }
-};
-if ($@){
-  warn "could not use Term::ProgressBar (consider installing the module for more interactive use";
-}
 
 __setInput();
 
@@ -200,7 +206,7 @@ if($method eq 'reverse'){
   }
   print STDERR "reverted $nbentries\n" if $verbose;
 }elsif($method eq 'shuffle'){
-  unless ($shuffle_ejectCleavPept){
+  unless ($shuffle_reshuffleCleavPept){
     my $nbentries=0;
     while((my ($head, $seq)=__nextEntry())[0]){
       $nbentries++;
@@ -213,15 +219,23 @@ if($method eq 'reverse'){
   }else{
     my $enz=qr/$shuffle_enzyme/;
     my %pepts;
+    my $vcrc = $shuffle_reshuffleCleavPept_CRCLen && Bit::Vector->new($maxBitCRC);
     my $nbentries=0;
     while((my ($head, $seq)=__nextEntry())[0]){
       $nbentries++;
       foreach (split $enz, $seq) {
-	$pepts{$_}++ if length($_)>=6;
+	my $l=length($_);
+	if($l>=$shuffle_reshuffleCleavPept_minLength){
+	  if($shuffle_reshuffleCleavPept_CRCLen){
+	    $vcrc->Bit_On(crc($_, 32)%$maxBitCRC);
+	  }else{
+	    $pepts{$_}=undef;
+	  }
+	}
       }
     }
     __setInput();
-    my @histoEjected;
+    my @histoReshuffled;
     my $nreshuffled=0;
     while((my ($head, $seq)=__nextEntry())[0]){
       $head=~s/>/>SHFLEJ_/ or die "entry header does not start with '>': $head";
@@ -229,11 +243,11 @@ if($method eq 'reverse'){
       my $newseq="";
       my $nreshuffperseq=0;
       foreach (split $enz, $seq) {
-	if (length($_)<6) {
+	if (length($_)<$shuffle_reshuffleCleavPept_minLength) {
 	  $newseq.=$_;
 	  next;
 	}
-	while ($pepts{$_}) {
+	while (($shuffle_reshuffleCleavPept_CRCLen && $vcrc->bit_test(crc($_, 32)%$maxBitCRC)) or exists $pepts{$_}) {
 	  $_=join ('', shuffle (split //, $_));
 	  $nreshuffled++;
 	  $nreshuffperseq++;
@@ -241,14 +255,14 @@ if($method eq 'reverse'){
 	$newseq.=$_;
       }
       print "$head\n".__prettySeq($newseq)."\n";
-      $histoEjected[$nreshuffperseq]++;
+      $histoReshuffled[$nreshuffperseq]++;
     }
     if($verbose){
       print STDERR "reshuffled pept/nb sequences: $nreshuffled/$nbentries\n";
       print STDERR "#seq\t#nb reshuffled peptides\n";
-      foreach (0..$#histoEjected) {
-	next unless $histoEjected[$_];
-	print STDERR "$_\t$histoEjected[$_]\n";
+      foreach (0..$#histoReshuffled) {
+	next unless $histoReshuffled[$_];
+	print STDERR "$_\t$histoReshuffled[$_]\n";
       }
     }
   }
@@ -279,6 +293,23 @@ sub __prettySeq{
 }
 
 sub __setInput{
+  eval{
+    if ((!$noProgressBar) && ($inFile !~ /gz$/i) && ($inFile ne '-')&& -t STDIN && -t STDOUT){
+      require Term::ProgressBar;
+      $size=(stat $inFile)[7];
+      $pg=Term::ProgressBar->new ({name=> "parsing ".basename($inFile),
+				   count=>$size,
+				   ETA=>'linear',
+				   remove=>1
+				  });
+    }
+    $nextpgupdate=0;
+    $readsize=0;
+  };
+  if ($@){
+    warn "could not use Term::ProgressBar (consider installing the module for more interactive use";
+  }
+  
   #set input
   if ($inFile eq '-'){
     $inFD=\*STDIN;

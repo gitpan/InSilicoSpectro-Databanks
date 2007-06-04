@@ -11,7 +11,7 @@ lib/InSilicoSpectro/Databanks.pm
 lib/InSilicoSpectro/Databanks/DBEntry.pm
 lib/InSilicoSpectro/Databanks/DBEntryUniprot.pm
 scripts/uniprotdat2fasta.pl
-scripts/databanks-decoy.pl
+scripts/fasta-decoy.pl
 t/DBEntry.t
 t/DBEntryUniprot.t
 t/DBUniprot.t
