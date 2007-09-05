@@ -68,7 +68,7 @@ Building a hash of known cleaved peptide can be quite demanding for memory (unip
 
 =head3 --shuffle-cleaveenzyme=regexp
 
-Set a regular expression for the enzyme [default is trysin: '(?<=[KR])(?=[^P])']
+Set a regular expression for the enzyme [default is trypsin: '.*?[KR](?=[^P])|.+$']
 
 =head3 --shuffle-testenzyme
 
@@ -133,7 +133,7 @@ use Getopt::Long;
 my ($method, $noProgressBar);
 
 my ($shuffle_reshuffleCleavPept, $shuffle_test);
-my $shuffle_enzyme='(?<=[KR])(?=[^P])';
+my $shuffle_enzyme='.*?[KR](?=[^P])|.+$';
 my $shuffle_reshuffleCleavPept_minLength=6;
 my $shuffle_reshuffleCleavPept_CRCLen;
 
@@ -169,10 +169,15 @@ if (!GetOptions(
   pod2usage(-verbose=>1, -exitval=>2);
 }
 
-my $maxBitCRC=1<<$shuffle_reshuffleCleavPept_CRCLen;
-if($shuffle_reshuffleCleavPept_CRCLen>=Bit::Vector->Long_Bits()){
-  die "no possible to ask for $shuffle_reshuffleCleavPept_CRCLen: max=".(Bit::Vector->Long_Bits()-1);
+my ($nbVCRC, $modVCRC, $maxBitCRC);
+if($shuffle_reshuffleCleavPept_CRCLen>=32){
+  $nbVCRC=1<<$shuffle_reshuffleCleavPept_CRCLen-31;
+  $maxBitCRC=1<<31;
+}else{
+  $nbVCRC=0;
+  $maxBitCRC=1<<$shuffle_reshuffleCleavPept_CRCLen;
 }
+print STDERR "nb CRC vector=$nbVCRC\nmax bit 4 crc=$maxBitCRC\n" if $verbose;
 
 die "no --method=methodname argument (see --help)" unless $method;
 
@@ -180,6 +185,9 @@ die "no --method=methodname argument (see --help)" unless $method;
 my ($pg, $size, $nextpgupdate, $readsize);
 $readsize=0;
 $nextpgupdate=0;
+my $imaxreshuffle=1000;
+my $imaxreshuffleFinal=10000;
+
 
 __setInput();
 
@@ -208,7 +216,7 @@ if($method eq 'reverse'){
 }elsif($method eq 'shuffle'){
   unless ($shuffle_reshuffleCleavPept){
     my $nbentries=0;
-    while((my ($head, $seq)=__nextEntry())[0]){
+    while ((my ($head, $seq)=__nextEntry())[0]) {
       $nbentries++;
       $head=~s/>/>SHFL_/ or die "entry header does not start with '>': $head";
       $seq=join ('', shuffle  split(//, $seq));
@@ -216,19 +224,23 @@ if($method eq 'reverse'){
       print __prettySeq($seq)."\n";
     }
     print STDERR "shuffled $nbentries\n" if $verbose;
-  }else{
-    my $enz=qr/$shuffle_enzyme/;
+  } else {
+    my $enz=qr/($shuffle_enzyme)/;
     my %pepts;
-    my $vcrc = $shuffle_reshuffleCleavPept_CRCLen && Bit::Vector->new($maxBitCRC);
+    my @vcrc = $shuffle_reshuffleCleavPept_CRCLen && Bit::Vector->new($maxBitCRC, $nbVCRC||1);
     my $nbentries=0;
-    while((my ($head, $seq)=__nextEntry())[0]){
+    while ((my ($head, $seq)=__nextEntry())[0]) {
       $nbentries++;
-      foreach (split $enz, $seq) {
+      while ($seq=~/$enz/g) {
+	$_=$1;
 	my $l=length($_);
-	if($l>=$shuffle_reshuffleCleavPept_minLength){
-	  if($shuffle_reshuffleCleavPept_CRCLen){
-	    $vcrc->Bit_On(crc($_, 32)%$maxBitCRC);
-	  }else{
+	if ($l>=$shuffle_reshuffleCleavPept_minLength) {
+	  if ($shuffle_reshuffleCleavPept_CRCLen) {
+	    my ($i, $c)=crc($_, 64);
+	    $i%=$nbVCRC;
+	    $c%=$maxBitCRC;
+	    $vcrc[$i]->Bit_On($c);
+	  } else {
 	    $pepts{$_}=undef;
 	  }
 	}
@@ -237,28 +249,95 @@ if($method eq 'reverse'){
     __setInput();
     my @histoReshuffled;
     my $nreshuffled=0;
-    while((my ($head, $seq)=__nextEntry())[0]){
-      $head=~s/>/>SHFLEJ_/ or die "entry header does not start with '>': $head";
+    my $nFinalReshuffle=0;
+    my $donotReadNext;
+    my ($head, $seq);
+    my $seqbak;
+    my $nreshuffperseq;
+    #donotReadNext is useed to resshuffle the whole sequence without reading the next one
+    my $iseq=0;
+    while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
+      #print  "(".__LINE__.") [$head]\n[$seq]\n";
+      if($donotReadNext){
+	$seq=$seqbak;
+	undef $donotReadNext;
+      }else{
+	$nreshuffperseq=0 ;
+	$seqbak=$seq;
+	$iseq++;
+      }
+      #die"TEMP END"  if $iseq>100;
+      if ($nreshuffperseq>$imaxreshuffleFinal) {
+	$head=~/>(\S+)/;
+	  if($pg){
+	    $pg->message("reshuffling the whole sequence without control [$1]");
+	  }else{
+	    warn "reshuffling the whole sequence without control [$1]\n";
+	  }
+	$head=~s/>/>SHFLPLUS_/ or die "entry header does not start with '>': $head";
+	my $newseq=join ('', shuffle (split //, $seq));
+	print "$head\n".__prettySeq($newseq)."\n";
+	$histoReshuffled[$nreshuffperseq]++;
+	$nFinalReshuffle++;
+	undef $donotReadNext;
+	next;
+      }
       $seq=join ('', shuffle (split //, $seq));
       my $newseq="";
-      my $nreshuffperseq=0;
-      foreach (split $enz, $seq) {
-	if (length($_)<$shuffle_reshuffleCleavPept_minLength) {
-	  $newseq.=$_;
+      while ($seq && $seq=~/$enz/) {
+	if ($nreshuffperseq && (($nreshuffperseq % $imaxreshuffle) == 0)) {
+	  $head=~/>(\S+)/;
+	  if($pg){
+	    $pg->message("reshuffling the whole sequence [$1] ($nreshuffperseq/$imaxreshuffleFinal)");
+	  }else{
+	    warn "reshuffling the whole sequence [$1] ($nreshuffperseq/$imaxreshuffleFinal)\n";
+	  }
+	  $nreshuffperseq++;
+	  $donotReadNext=1;
+	  last;
+	}
+	my $pept=$1;
+	if (length($pept)<$shuffle_reshuffleCleavPept_minLength) {
+	  $newseq.=$pept;
+	  $seq=substr($seq, length($pept));
 	  next;
 	}
-	while (($shuffle_reshuffleCleavPept_CRCLen && $vcrc->bit_test(crc($_, 32)%$maxBitCRC)) or exists $pepts{$_}) {
-	  $_=join ('', shuffle (split //, $_));
+	my $reshuffle;
+	if ($shuffle_reshuffleCleavPept_CRCLen) {
+	  my ($i, $c)=crc($pept, 64);
+	  $i%=$nbVCRC;
+	  $c%=$maxBitCRC;
+	  $reshuffle =  $vcrc[$i]->bit_test($c);
+	} else {
+	  $reshuffle = exists $pepts{$_};
+	}
+	if ($reshuffle) {
 	  $nreshuffled++;
 	  $nreshuffperseq++;
+	  if($seq=~/(.{50})(.+)/){
+	    my ($s1, $s2)=($1, $2);
+	    $seq=join ('', shuffle (split //, $s1)).$s2;
+	  }else{
+	    $seq=join ('', shuffle (split //, $seq));
+	  }
+	  next;
+	} else {
+	  $newseq.=$pept;
+	  $seq=substr($seq, length($pept));
+	  $histoReshuffled[$nreshuffperseq]++;
+	  $nreshuffperseq=0;
 	}
-	$newseq.=$_;
       }
-      print "$head\n".__prettySeq($newseq)."\n";
-      $histoReshuffled[$nreshuffperseq]++;
+      unless($donotReadNext){
+	$head=~s/>/>SHFLPLUS_/ or die "entry header does not start with '>': $head";
+	print "$head\n".__prettySeq($newseq)."\n";
+	$histoReshuffled[$nreshuffperseq]++;
+	#print "(".__LINE__.") [$head]\n[$newseq]\n";
+      }
     }
-    if($verbose){
+    if ($verbose) {
       print STDERR "reshuffled pept/nb sequences: $nreshuffled/$nbentries\n";
+      print STDERR "nb final (no-check)  seq reshuffling: $nFinalReshuffle\n";
       print STDERR "#seq\t#nb reshuffled peptides\n";
       foreach (0..$#histoReshuffled) {
 	next unless $histoReshuffled[$_];
@@ -266,7 +345,7 @@ if($method eq 'reverse'){
       }
     }
   }
-}else{
+} else {
   die "unimplemented method [$method]";
 }
 
@@ -309,7 +388,6 @@ sub __setInput{
   if ($@){
     warn "could not use Term::ProgressBar (consider installing the module for more interactive use";
   }
-  
   #set input
   if ($inFile eq '-'){
     $inFD=\*STDIN;

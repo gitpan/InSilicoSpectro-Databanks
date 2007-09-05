@@ -7,10 +7,13 @@ WriteMakefile
           'NAME' => 'InSilicoSpectro::Databanks',
           'EXE_FILES' => [
                            'scripts/fasta-decoy.pl',
+                           'scripts/ncbinr2phenyxfasta.pl',
                            'scripts/uniprotdat2fasta.pl'
                          ],
           'VERSION_FROM' => './lib/InSilicoSpectro/Databanks.pm',
           'PREREQ_PM' => {
+                           'Bit::Vector' => 0,
+                           'String::CRC' => 0,
                            'LWP::Simple' => 0,
                            'Object::InsideOut' => 0
                          }
