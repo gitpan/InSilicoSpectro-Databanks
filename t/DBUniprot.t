@@ -18,8 +18,8 @@ my $dbu=new InSilicoSpectro::Databanks::DBEntryUniprot;
 ok($dbu, "InSilicoSpectro::Databanks::DBEntryUniprot object instanciated");
 
 eval{
-  require InSilicoSpectro;
-  InSilicoSpectro::init();
+    require InSilicoSpectro;
+    InSilicoSpectro::init();
 };
 if($@){
   warn "[WARNING]: $@\n";

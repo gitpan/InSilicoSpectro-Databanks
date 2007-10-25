@@ -1,6 +1,6 @@
 ---
 name: InSilicoSpectro-Databanks
-version: 0.0.21
+version: 0.0.22
 author:
   - 'Alexandre Masselot <alexandre.masselot@genebio.com>'
 abstract: 'parsing protein/nucleotides sequence databanks (fasta, uniprot...)'
@@ -11,15 +11,15 @@ requires:
   Bit::Vector: 0
   LWP::Simple: 0
   Object::InsideOut: 0
-  String::CRC: 0
   perl: 5.6.1
 recommends:
   Bio::Perl: 1.4
   InSilicoSpectro: 0
+  String::CRC: 0
 provides:
   InSilicoSpectro::Databanks:
     file: lib/InSilicoSpectro/Databanks.pm
-    version: 0.0.21
+    version: 0.0.22
   InSilicoSpectro::Databanks::DBEntry:
     file: lib/InSilicoSpectro/Databanks/DBEntry.pm
   InSilicoSpectro::Databanks::DBEntryUniprot:
