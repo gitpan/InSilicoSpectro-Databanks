@@ -5,7 +5,7 @@ use Pod::Usage;
 
 =head1 NAME
 
-uniprotdata2fasta.pl
+uniprotdat2fasta.pl - converts uniprot native text format (.dat or .seq) into fasta file, reporting varsplic, signal, peptide, PTM, conflicts....
 
 =head1 DESCRIPTION
 

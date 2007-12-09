@@ -52,6 +52,10 @@ Set the decoying method
 
 =head1 OPTIONS
 
+=head2 --ac-prefix=string
+
+Set a key to be prepended befor the AC in the randomized banks. By default, it will be dependent on the choosen method)
+
 =head2 --method=shuffle options
 
 =head3 --shuffle-reshufflecleavedpeptides
@@ -130,12 +134,14 @@ use Bit::Vector;
 use List::Util qw/shuffle/;
 
 use Getopt::Long;
-my ($method, $noProgressBar);
+my ($acPrefix, $method, $noProgressBar);
 
 my ($shuffle_reshuffleCleavPept, $shuffle_test);
 my $shuffle_enzyme='.*?[KR](?=[^P])|.+$';
 my $shuffle_reshuffleCleavPept_minLength=6;
 my $shuffle_reshuffleCleavPept_CRCLen;
+
+my $hmm_level=2;
 
 my $inFile='-';
 my $outFile='-';
@@ -148,6 +154,7 @@ if (!GetOptions(
 		"out=s" => \$outFile,
 
 		"method=s" => \$method,
+		"ac-prefix=s" =>\$acPrefix,
 
 		"shuffle-reshufflecleavedpeptides"=> \$shuffle_reshuffleCleavPept,
 		"shuffle-reshufflecleavedpeptides-minlength=i"=> \$shuffle_reshuffleCleavPept_minLength,
@@ -155,6 +162,8 @@ if (!GetOptions(
 
 		"shuffle-testenzyme"=> \$shuffle_test,
 		"shuffle-cleaveenzyme"=> \$shuffle_enzyme,
+
+		"hmm-level=i"=>\$hmm_level,
 
 		"noprogressbar" => \$noProgressBar,
 
@@ -204,27 +213,100 @@ if ($outFile ne '-'){
 }
 
 if($method eq 'reverse'){
+  $acPrefix ||='REV_';
   my $nbentries=0;
   while((my ($head, $seq)=__nextEntry())[0]){
     $nbentries++;
-    $head=~s/>/>REV_/ or die "entry header does not start with '>': $head";
+    $head=~s/>/>$acPrefix/ or die "entry header does not start with '>': $head";
     $seq=reverse $seq;
     print  "$head\n";
     print __prettySeq($seq)."\n";
   }
   print STDERR "reverted $nbentries\n" if $verbose;
-}elsif($method eq 'shuffle'){
+} elsif ($method eq 'hmm') {
+  $acPrefix ||='HMM_';
+  my $nbentries=0;
+  die "--hmm-level=int [$hmm_level] should be between 0 and 3" unless $hmm_level>=0 && $hmm_level<=3;
+
+  my %chain;			#count and prob 
+  #counting
+  while ((my ($head, $seq)=__nextEntry())[0]) {
+    $nbentries++;
+    $seq.='*';
+    my $buf='';
+    while ($seq=~/(.)/g) {
+      my $p=pos $seq;
+      my $q=$p-$hmm_level-1;
+      $q=0 if $q<0;
+      my $prec=substr $seq, $q, $p-$q-1;
+      $chain{$prec || '^'}{$1}++;
+    }
+  }
+  #normalize;
+  foreach my $h (values %chain) {
+    my $tot=0;
+    $tot+=$_ foreach values %$h;
+    $h->{$_}=$h->{$_}*1.0/$tot foreach keys %$h;
+  }
+  #generate:
+  eval{
+    if ( -t STDIN && -t STDOUT){
+      require Term::ProgressBar;
+      $size=(stat $inFile)[7];
+      $pg=Term::ProgressBar->new ({name=> "hmm generation",
+				   count=>$nbentries,
+				   ETA=>'linear',
+				   remove=>1
+				  });
+    }
+    $nextpgupdate=0;
+    $readsize=0;
+  };
+
+
+  foreach (1..$nbentries) {
+    $readsize++;
+    $nextpgupdate=$pg->update($readsize) if $pg && $readsize>=$nextpgupdate;
+
+    print ">$acPrefix$_\n";
+    my $seq='';
+    my $prec='';
+    while (1) {
+      my $hNext;
+      $hNext=$prec?$chain{$prec}:$chain{'^'};
+      my $crand=rand;
+      my $nextAA='?';
+      foreach $_ (keys %$hNext) {
+	$crand-=$hNext->{$_};
+	if ($crand<=0) {
+	  $nextAA=$_;
+	  last;
+	}
+      }
+      last if $nextAA eq '*';
+      if ($hmm_level>0) {
+	$prec.=$nextAA;
+	$prec=~s/.+(?=.{$hmm_level})//;
+      }
+      die "NO next AA generated" if $nextAA eq '?';
+      $seq.=$nextAA;
+    }
+    print __prettySeq($seq)."\n";
+  }
+} elsif ($method eq 'shuffle') {
   unless ($shuffle_reshuffleCleavPept){
+    $acPrefix ||='SHFL_';
     my $nbentries=0;
     while ((my ($head, $seq)=__nextEntry())[0]) {
       $nbentries++;
-      $head=~s/>/>SHFL_/ or die "entry header does not start with '>': $head";
+      $head=~s/>/>$acPrefix/ or die "entry header does not start with '>': $head";
       $seq=join ('', shuffle  split(//, $seq));
       print  "$head\n";
       print __prettySeq($seq)."\n";
     }
     print STDERR "shuffled $nbentries\n" if $verbose;
   } else {
+    $acPrefix ||='SHFLPLUS_';
     my $enz=qr/($shuffle_enzyme)/;
     my %pepts;
     my @vcrc = $shuffle_reshuffleCleavPept_CRCLen && Bit::Vector->new($maxBitCRC, $nbVCRC||1);
@@ -258,10 +340,10 @@ if($method eq 'reverse'){
     my $iseq=0;
     while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
       #print  "(".__LINE__.") [$head]\n[$seq]\n";
-      if($donotReadNext){
+      if ($donotReadNext) {
 	$seq=$seqbak;
 	undef $donotReadNext;
-      }else{
+      } else {
 	$nreshuffperseq=0 ;
 	$seqbak=$seq;
 	$iseq++;
@@ -269,12 +351,12 @@ if($method eq 'reverse'){
       #die"TEMP END"  if $iseq>100;
       if ($nreshuffperseq>$imaxreshuffleFinal) {
 	$head=~/>(\S+)/;
-	  if($pg){
-	    $pg->message("reshuffling the whole sequence without control [$1]");
-	  }else{
-	    warn "reshuffling the whole sequence without control [$1]\n";
-	  }
-	$head=~s/>/>SHFLPLUS_/ or die "entry header does not start with '>': $head";
+	if ($pg) {
+	  $pg->message("reshuffling the whole sequence without control [$1]");
+	} else {
+	  warn "reshuffling the whole sequence without control [$1]\n";
+	}
+	$head=~s/>/>$acPrefix/ or die "entry header does not start with '>': $head";
 	my $newseq=join ('', shuffle (split //, $seq));
 	print "$head\n".__prettySeq($newseq)."\n";
 	$histoReshuffled[$nreshuffperseq]++;
@@ -287,9 +369,9 @@ if($method eq 'reverse'){
       while ($seq && $seq=~/$enz/) {
 	if ($nreshuffperseq && (($nreshuffperseq % $imaxreshuffle) == 0)) {
 	  $head=~/>(\S+)/;
-	  if($pg){
+	  if ($pg) {
 	    $pg->message("reshuffling the whole sequence [$1] ($nreshuffperseq/$imaxreshuffleFinal)");
-	  }else{
+	  } else {
 	    warn "reshuffling the whole sequence [$1] ($nreshuffperseq/$imaxreshuffleFinal)\n";
 	  }
 	  $nreshuffperseq++;
@@ -314,10 +396,10 @@ if($method eq 'reverse'){
 	if ($reshuffle) {
 	  $nreshuffled++;
 	  $nreshuffperseq++;
-	  if($seq=~/(.{50})(.+)/){
+	  if ($seq=~/(.{50})(.+)/) {
 	    my ($s1, $s2)=($1, $2);
 	    $seq=join ('', shuffle (split //, $s1)).$s2;
-	  }else{
+	  } else {
 	    $seq=join ('', shuffle (split //, $seq));
 	  }
 	  next;
@@ -329,7 +411,7 @@ if($method eq 'reverse'){
 	}
       }
       unless($donotReadNext){
-	$head=~s/>/>SHFLPLUS_/ or die "entry header does not start with '>': $head";
+	$head=~s/>/>$acPrefix/ or die "entry header does not start with '>': $head";
 	print "$head\n".__prettySeq($newseq)."\n";
 	$histoReshuffled[$nreshuffperseq]++;
 	#print "(".__LINE__.") [$head]\n[$newseq]\n";

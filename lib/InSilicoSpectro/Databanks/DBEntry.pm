@@ -6,7 +6,7 @@ use Carp;
 
 =head1 NAME
 
-InSilico::Databanks::DBEntry
+InSilico::Databanks::DBEntry - fasta databank entry + header's annotated info
 
 =head1 SYNOPSIS
 

@@ -5,7 +5,7 @@ use Pod::Usage;
 
 =head1 NAME
 
-cgiUniprotEntry.pl
+cgiUniprotEntry.pl - cgi scripts to grep a uniprot AC and print a fasta with derivated sequence
 
 
 =head1 DESCRIPTION

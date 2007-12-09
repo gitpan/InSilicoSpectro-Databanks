@@ -6,7 +6,7 @@ use Carp;
 
 =head1 NAME
 
-InSilicoSpectro::Databanks::DBEntryUniprot
+InSilicoSpectro::Databanks::DBEntryUniprot - Uniprot formated entry
 
 =head1 SYNOPSIS
 
@@ -218,7 +218,11 @@ use File::Basename;
       }
       if ($curFTLine) {
 	croak "recording FT line is on and line does not match /^FT\\s+/" unless s/^FT\s+//;
-	$curFTLine->{comment}.=" $_";
+	if(($curFTLine->{comment}=~/isoform \S+$/) && ($_!~/^and/) && ($_=~/^\w/)){
+	  $curFTLine->{comment}.="$_";
+	}else{
+	  $curFTLine->{comment}.=" $_";
+	}
 	next;
       }
 
