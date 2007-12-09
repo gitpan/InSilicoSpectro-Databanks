@@ -376,6 +376,7 @@ if($method eq 'reverse'){
 	$head=~s/>/>$acPrefix/ or die "entry header does not start with '>': $head";
 	my $newseq=join ('', shuffle (split //, $seq));
 	print "$head\n".__prettySeq($newseq)."\n";
+
 	$histoReshuffled[$nreshuffperseq]++;
 	$nFinalReshuffle++;
 	undef $donotReadNext;
@@ -396,19 +397,30 @@ if($method eq 'reverse'){
 	  last;
 	}
 	my $pept=$1;
-	if (length($pept)<$shuffle_reshuffleCleavPept_minLength) {
-	  $newseq.=$pept;
-	  $seq=substr($seq, length($pept));
-	  next;
-	}
+
 	my $reshuffle;
-	if ($shuffle_reshuffleCleavPept_CRCLen) {
-	  my ($i, $c)=crc($pept, 64);
-	  $i%=$nbVCRC;
-	  $c%=$maxBitCRC;
-	  $reshuffle =  $vcrc[$i]->bit_test($c);
-	} else {
-	  $reshuffle = exists $pepts{$_};
+	if($newseq){
+	  my $charniere=substr($newseq, length($newseq) -1, 1).substr($pept, 0, 1);
+	  if(($charniere=~s/$enz//) && !$charniere){
+	    $reshuffle=1;
+	  }
+	}
+
+
+	unless ($reshuffle){
+	  if (length($pept)<$shuffle_reshuffleCleavPept_minLength) {
+	    $newseq.=$pept;
+	    $seq=substr($seq, length($pept));
+	    next;
+	  }
+	  if ($shuffle_reshuffleCleavPept_CRCLen) {
+	    my ($i, $c)=crc($pept, 64);
+	    $i%=$nbVCRC;
+	    $c%=$maxBitCRC;
+	    $reshuffle =  $vcrc[$i]->bit_test($c);
+	  } else {
+	    $reshuffle = exists $pepts{$_};
+	  }
 	}
 	if ($reshuffle) {
 	  $nreshuffled++;
