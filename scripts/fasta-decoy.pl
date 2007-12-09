@@ -25,14 +25,31 @@ Reads input fasta file and produce a decoyed databanks with several methods:
 
 =head1 SYNOPSIS
 
-#reverse sequences for a local (optionaly compressed) file
-fasta-decoys.pl --in=/tmp/uniprot_sprot.fasta.gz --method=reverse
+  #reverse sequences for a local (optionaly compressed) file
+  fasta-decoys.pl --in=/tmp/uniprot_sprot.fasta.gz --method=reverse
 
-#download databanks from the web | uncompress it and shuffle the sequence
-wget -silent -O - ftp://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz | zcat |  databatanks-decoy.pl --method=shuffle
+  #download databanks from the web | uncompress it and shuffle the sequence
+  wget -silent -O - ftp://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz | zcat |  databatanks-decoy.pl --method=shuffle
 
-#use a .dat file (with splice forms) as an input
-uniprotdat2fasta.pl --in=uniprot_sprot_human.dat | fasta-decoy.pl --method=markovmodel
+  #use a .dat file (with splice forms) as an input
+  uniprotdat2fasta.pl --in=uniprot_sprot_human.dat | fasta-decoy.pl --method=markovmodel
+
+  #reversing each sequence
+  fasta-decoy.pl --ac-prefix=DECOY_ --in=mitoch.fasta --method=reverse --out=mitoch-reverse.fasta
+
+  #drawing amino acid following distribution in original fasta (end of sequence is considered as a learned random event)
+  fasta-decoy.pl --ac-prefix=DECOY_ --in=mitoch.fasta --method=markovmodel --markovmodel-level=0 --out=mitoch-markovmodel_0.fasta
+
+  #drawing amino acid with a markov model (here of length 3)
+  fasta-decoy.pl --ac-prefix=DECOY_ --in=mitoch.fasta --method=markovmodel --markovmodel-level=3 --out=mitoch-markovmodel_3.fasta
+
+  #each sequence is randomly shuffled
+  fasta-decoy.pl --ac-prefix=DECOY_ --in=mitoch.fasta --method=shuffle --out=mitoch-shuffle.fasta
+
+  #idem, but no tryptic peptide (of length>=6) from the original bank must be found in the random one; 
+  #crc is the number of bit attributed to builiding the index mechanism, to avoid memory overallocation
+  #crc=33 means 1GB of ram will be used to store the index, 32 means 512MB, 34 means 2GB etc..)
+  fasta-decoy.pl --ac-prefix=DECOY_ --in=mitoch.fasta --method=shuffle --shuffle-reshufflecleavedpeptides-crc=33 --shuffle-reshufflecleavedpeptides --out=mitoch-shuffleplus.fasta
 
 
 =head1 ARGUMENTS
@@ -68,7 +85,7 @@ Set the size of the peptide to be reshuffled is they already exist
 
 =head3 --shuffle-reshufflecleavedpeptides-crc=int
 
-Building a hash of known cleaved peptide can be quite demanding for memory (uniprot_rembl => ~4GB). Thereforea solution is to make an but array containing stating if or not a peptide with corresponding crc code was found.
+Building a hash of known cleaved peptide can be quite demanding for memory (uniprot_trembl => ~4GB). Thereforea solution is to make an but array containing stating if or not a peptide with corresponding crc code was found.
 
 =head3 --shuffle-cleaveenzyme=regexp
 
@@ -141,7 +158,7 @@ my $shuffle_enzyme='.*?[KR](?=[^P])|.+$';
 my $shuffle_reshuffleCleavPept_minLength=6;
 my $shuffle_reshuffleCleavPept_CRCLen;
 
-my $hmm_level=2;
+my $markovmodel_level=2;
 
 my $inFile='-';
 my $outFile='-';
@@ -163,7 +180,7 @@ if (!GetOptions(
 		"shuffle-testenzyme"=> \$shuffle_test,
 		"shuffle-cleaveenzyme"=> \$shuffle_enzyme,
 
-		"hmm-level=i"=>\$hmm_level,
+		"markovmodel-level=i"=>\$markovmodel_level,
 
 		"noprogressbar" => \$noProgressBar,
 
@@ -223,10 +240,10 @@ if($method eq 'reverse'){
     print __prettySeq($seq)."\n";
   }
   print STDERR "reverted $nbentries\n" if $verbose;
-} elsif ($method eq 'hmm') {
-  $acPrefix ||='HMM_';
+} elsif ($method eq 'markovmodel') {
+  $acPrefix ||='MARKOVMODEL_';
   my $nbentries=0;
-  die "--hmm-level=int [$hmm_level] should be between 0 and 3" unless $hmm_level>=0 && $hmm_level<=3;
+  die "--markovmodel-level=int [$markovmodel_level] should be between 0 and 3" unless $markovmodel_level>=0 && $markovmodel_level<=3;
 
   my %chain;			#count and prob 
   #counting
@@ -236,7 +253,7 @@ if($method eq 'reverse'){
     my $buf='';
     while ($seq=~/(.)/g) {
       my $p=pos $seq;
-      my $q=$p-$hmm_level-1;
+      my $q=$p-$markovmodel_level-1;
       $q=0 if $q<0;
       my $prec=substr $seq, $q, $p-$q-1;
       $chain{$prec || '^'}{$1}++;
@@ -253,7 +270,7 @@ if($method eq 'reverse'){
     if ( -t STDIN && -t STDOUT){
       require Term::ProgressBar;
       $size=(stat $inFile)[7];
-      $pg=Term::ProgressBar->new ({name=> "hmm generation",
+      $pg=Term::ProgressBar->new ({name=> "markovmodel generation",
 				   count=>$nbentries,
 				   ETA=>'linear',
 				   remove=>1
@@ -284,9 +301,9 @@ if($method eq 'reverse'){
 	}
       }
       last if $nextAA eq '*';
-      if ($hmm_level>0) {
+      if ($markovmodel_level>0) {
 	$prec.=$nextAA;
-	$prec=~s/.+(?=.{$hmm_level})//;
+	$prec=~s/.+(?=.{$markovmodel_level})//;
       }
       die "NO next AA generated" if $nextAA eq '?';
       $seq.=$nextAA;
