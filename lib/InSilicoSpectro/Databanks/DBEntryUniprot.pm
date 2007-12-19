@@ -359,7 +359,7 @@ use File::Basename;
     my @isoforms;
 
     my $counter=0;
-    foreach my $isoform (sort keys %{$self->__VAR_SEQ}) {
+    foreach my $isoform (sort {$a <=> $b}  keys %{$self->__VAR_SEQ}) {
       my $isoseq=$self->clone(1);
       $isoseq->ACorig($self->AC());
       $isoseq->AC($shortName ? $self->AC()."_I$counter" : $self->AC()."_ISOFORM_$isoform");
@@ -449,7 +449,8 @@ use File::Basename;
     $pos|=0;
     $seq=~s/(.{$pos}).{$len}/$1$substr/;
     $self->sequence($seq);
-    $self->updateAnnotPos($pos, $len);
+    #CHANGE 2007/12/19
+    $self->updateAnnotPos($pos, $len-length($substr));
   }
 
 
@@ -485,7 +486,7 @@ use File::Basename;
 	my $p=$tmp[0];
 	if ($p>=$pos) {
 	  $tmp[0]-=$len;
-	  $self->add_annotatedModRes(@tmp) if $tmp[0]>0;
+	  $self->add_annotatedModRes(@tmp) if $tmp[0]>$pos;
 	} else {
 	  $self->add_annotatedModRes(@tmp);
 	}

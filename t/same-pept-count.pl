@@ -40,13 +40,14 @@ while((my ($head, $seq)=__nextEntry())[0]){
 	my $tmp=$seq;
 	my $pept=$1;
       }
+      delete $peptdic{$1}; ## REMOVE this line if you wish to count several times the same repeated peptide
     }
   }
 }
 
 foreach (0..$#matchedPept){
-  next unless $matchedPept[$_];
-  print "$_\t$matchedPept[$_]\n";
+  #next unless $matchedPept[$_];
+  print "$_\t".($matchedPept[$_] || 0)."\n";
 }
 # foreach (0..$#palind){
 #   next unless $palind[$_];

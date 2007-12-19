@@ -343,7 +343,7 @@ use File::Basename;
 	$annot[$p].="VARIANT $s -> $u";
       }
     }
-    print "<font face=courier>\n";
+    print "<div class='sequence'>\n";
     foreach (0..$#seq) {
       print " " unless $_%10;
       print "</br>\n" unless $_%60;
@@ -353,7 +353,7 @@ use File::Basename;
 	print $seq[$_];
       }
     }
-    print "</font>\n";
+    print "</div>\n";
   }
 }
 

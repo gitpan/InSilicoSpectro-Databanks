@@ -137,6 +137,7 @@ unless($query->param('ac')){
 <head>	
 		<title>$script</title>
 
+
 </head>
 
 <body>
@@ -194,7 +195,6 @@ if($outputFormat=~/^(dat|fasta)$/i){
 		      );
 }
 
-
 use File::Basename;
 use LWP::Simple;
 
@@ -219,7 +219,14 @@ if($outputFormat=~/^(dat)$/i){
     my $ac=$dbu->AC;
     print <<EOT;
 <html>
+  <header>
   <title>$ac</title>
+  <style>
+.sequence{
+  font-family: monospace;
+}
+  </style>
+  </header>
   <body>
 EOT
     print "

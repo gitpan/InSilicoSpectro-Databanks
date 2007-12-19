@@ -89,7 +89,7 @@ Building a hash of known cleaved peptide can be quite demanding for memory (unip
 
 =head3 --shuffle-cleaveenzyme=regexp
 
-Set a regular expression for the enzyme [default is trypsin: '.*?[KR](?=[^P])|.+$']
+Set a regular expression for the enzyme [default is trypsin: '.*?[KR](?=[^P])']
 
 =head3 --shuffle-testenzyme
 
@@ -147,14 +147,14 @@ Alexandre Masselot, www.genebio.com
 use SelectSaver;
 use File::Basename;
 use String::CRC;
-use Bit::Vector;
+use Bit::Vector::Overload;
 use List::Util qw/shuffle/;
 
 use Getopt::Long;
 my ($acPrefix, $method, $noProgressBar);
 
 my ($shuffle_reshuffleCleavPept, $shuffle_test);
-my $shuffle_enzyme='.*?[KR](?=[^P])|.+$';
+my $shuffle_enzyme='.*?[KR](?=[^P])';
 my $shuffle_reshuffleCleavPept_minLength=6;
 my $shuffle_reshuffleCleavPept_CRCLen;
 
@@ -194,13 +194,15 @@ if (!GetOptions(
   pod2usage(-verbose=>2, -exitval=>2) if(defined $man);
   pod2usage(-verbose=>1, -exitval=>2);
 }
+my $enzInit=$shuffle_enzyme;
+$shuffle_enzyme.='|.+$';
 
 my ($nbVCRC, $modVCRC, $maxBitCRC);
 if($shuffle_reshuffleCleavPept_CRCLen>=32){
   $nbVCRC=1<<$shuffle_reshuffleCleavPept_CRCLen-31;
   $maxBitCRC=1<<31;
 }else{
-  $nbVCRC=0;
+  $nbVCRC=1;
   $maxBitCRC=1<<$shuffle_reshuffleCleavPept_CRCLen;
 }
 print STDERR "nb CRC vector=$nbVCRC\nmax bit 4 crc=$maxBitCRC\n" if $verbose;
@@ -326,8 +328,9 @@ if($method eq 'reverse'){
     $acPrefix ||='SHFLPLUS_';
     my $enz=qr/($shuffle_enzyme)/;
     my %pepts;
-    my @vcrc = $shuffle_reshuffleCleavPept_CRCLen && Bit::Vector->new($maxBitCRC, $nbVCRC||1);
+    my @vcrc = $shuffle_reshuffleCleavPept_CRCLen && Bit::Vector::Overload->new($maxBitCRC, $nbVCRC||1);
     my $nbentries=0;
+    my $nbpept=0;
     while ((my ($head, $seq)=__nextEntry())[0]) {
       $nbentries++;
       while ($seq=~/$enz/g) {
@@ -339,11 +342,19 @@ if($method eq 'reverse'){
 	    $i%=$nbVCRC;
 	    $c%=$maxBitCRC;
 	    $vcrc[$i]->Bit_On($c);
+	    $nbpept++;
 	  } else {
 	    $pepts{$_}=undef;
 	  }
 	}
       }
+    }
+    if($verbose){
+      my $cptbit=0;
+      foreach my $v (@vcrc) {
+	$cptbit+=abs($v);
+      }
+      warn "duplication rate in the CRC index=".sprintf("%2.2f", (1.0*$nbpept)/$cptbit)." ($nbpept/$cptbit) - this include 'natural' duplication when a cleaved peptide is seen more than once in the databank\n" if $verbose;
     }
     __setInput();
     my @histoReshuffled;
@@ -425,7 +436,24 @@ if($method eq 'reverse'){
 	if ($reshuffle) {
 	  $nreshuffled++;
 	  $nreshuffperseq++;
-	  if ($seq=~/(.{50})(.+)/) {
+	  if($nreshuffperseq<$imaxreshuffle/10){
+	    $pept=~/(.*)(.)/;
+	    my ($center, $caa)=($1, $2, $3);
+	    $seq=substr($seq, length($pept));
+	    $seq=~s/(.{0,50})//;
+	    my $preseq=$1;
+	    my $l=length($center);
+	    $center.=$preseq;
+	    my $newpept;
+	    foreach (0..100){
+	      $center=join('', shuffle (split //, $center));
+	      $center=~/(.{$l})(.*)/;
+	      $newpept=$1.$caa.$2;
+	      my $p=$1.$caa;
+	      last unless $p=~/$enzInit/o;
+	    }
+	    $seq=$newpept.$seq;
+	  }elsif ($seq=~/(.{50})(.+)/) {
 	    my ($s1, $s2)=($1, $2);
 	    $seq=join ('', shuffle (split //, $s1)).$s2;
 	  } else {
