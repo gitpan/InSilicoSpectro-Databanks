@@ -436,23 +436,19 @@ if($method eq 'reverse'){
 	if ($reshuffle) {
 	  $nreshuffled++;
 	  $nreshuffperseq++;
-	  if($nreshuffperseq<$imaxreshuffle/10){
-	    $pept=~/(.*)(.)/;
-	    my ($center, $caa)=($1, $2, $3);
-	    $seq=substr($seq, length($pept));
-	    $seq=~s/(.{0,50})//;
-	    my $preseq=$1;
-	    my $l=length($center);
-	    $center.=$preseq;
-	    my $newpept;
+	  if($nreshuffperseq<$imaxreshuffle/2){
+	    my $lpept=length($pept);
 	    foreach (0..100){
-	      $center=join('', shuffle (split //, $center));
-	      $center=~/(.{$l})(.*)/;
-	      $newpept=$1.$caa.$2;
-	      my $p=$1.$caa;
-	      last unless $p=~/$enzInit/o;
+	      my $l1=int(rand($lpept-2));
+	      my $r1=$lpept-$l1-1;
+	      my $lmax=length($seq);
+	      $lmax=1000 if $lmax>1000;
+	      my $l2=int(rand($lmax))-$lpept;
+	      my $tmpseq=$seq;
+	      $seq=~s/(.{$l1})(.)(.{$r1}.{$l2})(.)/$1$4$3$2/;
+	      last unless substr($seq,0, $lpept-1)=~/$enzInit/o;
+	      $seq=$tmpseq;
 	    }
-	    $seq=$newpept.$seq;
 	  }elsif ($seq=~/(.{50})(.+)/) {
 	    my ($s1, $s2)=($1, $2);
 	    $seq=join ('', shuffle (split //, $s1)).$s2;
