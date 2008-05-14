@@ -2,31 +2,36 @@
 use strict;
 use Carp;
 use Pod::Usage;
-
+BEGIN{
+eval{
+  use Inline 'C';
+}
+print STDERR "$@\n" if ($@);
+}
 =head1 NAME
 
 fasta-decoy.pl - decoy input databanks following several moethods
 
 =head1 DESCRIPTION
 
-Reads input fasta file and produce a decoyed databanks with several methods:
+Reads input fasta file and produce a decoyed databank with several methods:
 
 =over 4
 
-=item reverse: simply reverse each the sequence
+=item reverse: simply reverse each sequence
 
 =item shuffle: shuffle AA in each sequence
 
-=item shuffle & avoid known cleaved peptides: shuffe sequence but avoid producing kown trayptic peptides
+=item shuffle & avoid known cleaved peptides: shuffle sequence but avoid producing known tryptic peptides
 
-=item Markov model: learn Markov model chain distribution of a given level), then produces entries corresponding to this distribution
+=item Markov model: learn Markov model chain distribution of a given level, then produces entries corresponding to this distribution
 
 =back
 
 =head1 SYNOPSIS
 
   #reverse sequences for a local (optionaly compressed) file
-  fasta-decoys.pl --in=/tmp/uniprot_sprot.fasta.gz --method=reverse
+  fasta-decoy.pl --in=/tmp/uniprot_sprot.fasta.gz --method=reverse
 
   #download databanks from the web | uncompress it and shuffle the sequence
   wget -silent -O - ftp://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz | zcat |  databatanks-decoy.pl --method=shuffle
@@ -47,7 +52,7 @@ Reads input fasta file and produce a decoyed databanks with several methods:
   fasta-decoy.pl --ac-prefix=DECOY_ --in=mitoch.fasta --method=shuffle --out=mitoch-shuffle.fasta
 
   #idem, but no tryptic peptide (of length>=6) from the original bank must be found in the random one; 
-  #crc is the number of bit attributed to builiding the index mechanism, to avoid memory overallocation
+  #crc is the number of bit attributed to building the index mechanism, to avoid memory overallocation
   #crc=33 means 1GB of ram will be used to store the index, 32 means 512MB, 34 means 2GB etc..)
   fasta-decoy.pl --ac-prefix=DECOY_ --in=mitoch.fasta --method=shuffle --shuffle-reshufflecleavedpeptides-crc=33 --shuffle-reshufflecleavedpeptides --out=mitoch-shuffleplus.fasta
 
@@ -71,7 +76,7 @@ Set the decoying method
 
 =head2 --ac-prefix=string
 
-Set a key to be prepended befor the AC in the randomized banks. By default, it will be dependent on the choosen method)
+Set a key to be prepended before the AC in the randomized bank. By default, it will be dependent on the choosen method.
 
 =head2 --method=shuffle options
 
@@ -81,11 +86,11 @@ Re-shuffle peptides of size >=6 that where detected as cleaved one in original d
 
 =head3 --shuffle-reshufflecleavedpeptides-minlength [default 6]
 
-Set the size of the peptide to be reshuffled is they already exist
+Set the size of the peptide to be reshuffled if they already exist
 
 =head3 --shuffle-reshufflecleavedpeptides-crc=int
 
-Building a hash of known cleaved peptide can be quite demanding for memory (uniprot_trembl => ~4GB). Thereforea solution is to make an but array containing stating if or not a peptide with corresponding crc code was found.
+Building a hash of known cleaved peptide can be quite demanding for memory (uniprot_trembl => ~4GB). Therefore solution is to make an  array containing statements if or not a peptide with corresponding crc code was found.
 
 =head3 --shuffle-cleaveenzyme=regexp
 
@@ -113,7 +118,7 @@ do not display terminal progress bar (if possible)
 
 =head3 --verbose
 
-Setting an environment vartiable DO_NOT_DELETE_TEMP=1 will keep the temporay file after the script exit
+Setting an environment variable DO_NOT_DELETE_TEMP=1 will keep the temporay file after the script exit
 
 =head1 EXAMPLE
 
@@ -146,8 +151,6 @@ Alexandre Masselot, www.genebio.com
 
 use SelectSaver;
 use File::Basename;
-use String::CRC;
-use Bit::Vector::Overload;
 use List::Util qw/shuffle/;
 
 use Getopt::Long;
@@ -163,6 +166,8 @@ my $markovmodel_level=2;
 my $inFile='-';
 my $outFile='-';
 my $inFD;
+
+my $outLength;
 
 my($help, $man, $verbose);
 
@@ -181,6 +186,8 @@ if (!GetOptions(
 		"shuffle-cleaveenzyme"=> \$shuffle_enzyme,
 
 		"markovmodel-level=i"=>\$markovmodel_level,
+
+		"outlength=i"=>\$outLength,
 
 		"noprogressbar" => \$noProgressBar,
 
@@ -215,7 +222,6 @@ $readsize=0;
 $nextpgupdate=0;
 my $imaxreshuffle=1000;
 my $imaxreshuffleFinal=10000;
-
 
 __setInput();
 
@@ -325,6 +331,9 @@ if($method eq 'reverse'){
     }
     print STDERR "shuffled $nbentries\n" if $verbose;
   } else {
+    require String::CRC;
+    require Bit::Vector::Overload;
+
     $acPrefix ||='SHFLPLUS_';
     my $enz=qr/($shuffle_enzyme)/;
     my %pepts;
@@ -375,6 +384,7 @@ if($method eq 'reverse'){
 	$nreshuffperseq=0 ;
 	$seqbak=$seq;
 	$iseq++;
+	last if $outLength && $iseq>$outLength;
       }
       #die"TEMP END"  if $iseq>100;
       if ($nreshuffperseq>$imaxreshuffleFinal) {
@@ -438,16 +448,16 @@ if($method eq 'reverse'){
 	  $nreshuffperseq++;
 	  if($nreshuffperseq<$imaxreshuffle/2){
 	    my $lpept=length($pept);
+	    my $lseq=length($seq);
+	    my ($l1, $l2, $lmax);
 	    foreach (0..100){
-	      my $l1=int(rand($lpept-2));
-	      my $r1=$lpept-$l1-1;
-	      my $lmax=length($seq);
-	      $lmax=1000 if $lmax>1000;
-	      my $l2=int(rand($lmax))-$lpept;
-	      my $tmpseq=$seq;
-	      $seq=~s/(.{$l1})(.)(.{$r1}.{$l2})(.)/$1$4$3$2/;
+	      #well, the 2 numbers are not independent. et alors?
+	      $l2=int(rand($lseq-2-$lpept));
+	      $l1=$l2%($lpept-2);
+	      $l2+=$lpept;
+	      c_swap($seq, $l1, $l2);
 	      last unless substr($seq,0, $lpept-1)=~/$enzInit/o;
-	      $seq=$tmpseq;
+	      c_swap($seq, $l1, $l2);
 	    }
 	  }elsif ($seq=~/(.{50})(.+)/) {
 	    my ($s1, $s2)=($1, $2);
@@ -533,4 +543,21 @@ sub __setInput{
     open ($inFD, "<$inFile") or die "cannot open for reading [$inFile]: $!";
   }
 }
+
+__END__ 
+time ./fasta-decoy.pl --ac-prefix=DECOY_ --in=/home/alex/tmp/a.fasta --method=shuffle --shuffle-reshufflecleavedpeptides-crc=33 --shuffle-reshufflecleavedpeptides --out=/tmp/a.fasta --outlength=10000
+
+just la partie cksum=>50sec
+
+En dessous, on compte just la partie decoying
+originale => 7.30
+substr_=> 1.30
+
+__C__
+  void c_swap(char* str, int i1, int i2){
+    char t=str[i2];
+    str[i2]=str[i1];
+    str[i1]=t;
+  }
+
 

@@ -12,7 +12,6 @@ WriteMakefile
                          ],
           'VERSION_FROM' => './lib/InSilicoSpectro/Databanks.pm',
           'PREREQ_PM' => {
-                           'Bit::Vector' => 0,
                            'LWP::Simple' => 0,
                            'Object::InsideOut' => 0
                          }
