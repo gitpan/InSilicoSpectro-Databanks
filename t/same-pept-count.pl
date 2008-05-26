@@ -37,7 +37,7 @@ while((my ($head, $seq)=__nextEntry())[0]){
     if(exists $peptdic{$1}){
       $matchedPept[length($1)]++;
       if (length($1)>=6){
-	warn "$1";
+	#warn "$1";
 	my $tmp=$seq;
 	my $pept=$1;
       }

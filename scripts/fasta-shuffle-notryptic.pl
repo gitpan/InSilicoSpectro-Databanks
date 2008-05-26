@@ -2,6 +2,7 @@
 use strict;
 use Carp;
 use Pod::Usage;
+
 =head1 NAME
 
   fasta-shuffle-notryptic.pl - shuffle each sequence, without any original tryptic peptide
@@ -13,10 +14,12 @@ Reads input fasta file and produce a shuffle databank & avoid known cleaved pept
 
 =head1 SYNOPSIS
 
-  #shuffle each sequence
-  fasta-shuffle-notryptic.pl --in=/tmp/uniprot_sprot.fasta
+#shuffle each sequence
+fasta-shuffle-notryptic.pl --in=/tmp/uniprot_sprot.fasta
 
 
+#to limit memory usage, one can use CRC code (--crcsize will 
+./fasta-shuffle-notryptic.pl --ac-prefix=DECOY_ --in=/home/alex/tmp/a.fasta  --out=/tmp/a.fasta  --crcsize=33 -v  --norandom 
 
 =head1 ARGUMENTS
 
@@ -43,6 +46,8 @@ Set the size of the peptide to be reshuffled if they already exist
 =head3 --crcsize=int
 
 Building a hash of known cleaved peptide can be quite demanding for memory (uniprot_trembl => ~4GB). Therefore solution is to make an  array containing statements if or not a peptide with corresponding crc code was found.
+
+The argument passed here is the number of bits use for the CRC coding: 33 means 2^33 bit of memory => 2^30 bytes => 1GB
 
 =head3 --norandomseed
 
@@ -91,11 +96,12 @@ Alexandre Masselot, www.genebio.com
 
 use Inline 'C';
 use String::CRC;
-use Bit::Vector::Overload;
+use Bit::Vector;
 use SelectSaver;
 use File::Basename;
 use List::Util qw/shuffle/;
 use Log::StdLog;
+
 
 use Getopt::Long;
 my ($acPrefix, $noProgressBar);
@@ -153,8 +159,8 @@ my @vcrc;
 my %peptsDico;
 
 if ($shuffle_reshuffleCleavPept_CRCLen>=32) {
-  $nbVCRC=1<<$shuffle_reshuffleCleavPept_CRCLen-31;
-  $maxBitCRC=1<<31;
+  $nbVCRC=1<<($shuffle_reshuffleCleavPept_CRCLen-32);
+  $maxBitCRC=2*(1<<31); #WARN 1<<32 => 1!!!
 } else {
   $nbVCRC=1;
   $maxBitCRC=1<<$shuffle_reshuffleCleavPept_CRCLen;
@@ -183,18 +189,33 @@ if ($outFile ne '-') {
 }
 
 $acPrefix ||='SHFLPLUS_';
-@vcrc = $shuffle_reshuffleCleavPept_CRCLen && Bit::Vector::Overload->new($maxBitCRC, $nbVCRC||1);
+@vcrc = $shuffle_reshuffleCleavPept_CRCLen && Bit::Vector->new($maxBitCRC, $nbVCRC||1);
 $nbpept=0;
+
+my ($cptbit, $size)=(0,0);
+if($shuffle_reshuffleCleavPept_CRCLen){
+  foreach my $v (@vcrc) {
+    $v->Empty;
+    $cptbit+=$v->Norm();
+  }
+  $size=$vcrc[0]->Size();
+  warn "cptbit=$cptbit";
+  warn "size=".($maxBitCRC*$nbVCRC);
+}
 
 computeCRC();
 print {*STDLOG} info=> "nbentries=$nbentries\tnbpept=$nbpept\n";
 
-if ($verbose) {
+if ($shuffle_reshuffleCleavPept_CRCLen) {
   my $cptbit=0;
+  my $size=0;
   foreach my $v (@vcrc) {
-    $cptbit+=abs($v);
+    $cptbit+=$v->Norm();
   }
-  print {*STDLOG} info=>  "duplication rate in the CRC index=".sprintf("%2.2f", (1.0*$nbpept)/$cptbit)." ($nbpept/$cptbit) - this include 'natural' duplication when a cleaved peptide is seen more than once in the databank\n" if $shuffle_reshuffleCleavPept_CRCLen;
+  print {*STDLOG} info=>  "duplication rate in the CRC index=".sprintf("%2.2f", (1.0*$nbpept)/$cptbit)." ($nbpept/$cptbit) - this include 'natural' duplication when a cleaved peptide is seen more than once in the databank\n";
+  print {*STDLOG} info => "crc vector fill rate=".sprintf("%3.3f", (1.0*$cptbit)/$nbVCRC/$maxBitCRC)." ($cptbit/($nbVCRC*$maxBitCRC))\n";
+}else{
+  print {*STDLOG} info => "nb <> pept seq=".scalar(keys %peptsDico)."\n";
 }
 __setInput();
 my @histoReshuffled;
@@ -267,9 +288,13 @@ while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
       next;
     }
     if ($shuffle_reshuffleCleavPept_CRCLen) {
-      my ($i, $c)=crc($pept, 64);
-      $i%=$nbVCRC;
-      $c%=$maxBitCRC;
+      my ($i, $c)=crc($pept, $shuffle_reshuffleCleavPept_CRCLen);
+      if($nbVCRC>1){
+	#$c%=$maxBitCRC;
+      }else{
+	$c=$i;
+	$i=0;
+      }
       $reshuffle =  $vcrc[$i]->bit_test($c);
     } else {
       $reshuffle = exists $peptsDico{$pept};
@@ -283,7 +308,7 @@ while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
 	$nreshuffperseq++;
 	my $lpept=length($pept);
 	my $lseq=length($seq);
-	last if $lpept == $lseq;
+	last if $lpept== $lseq;
 	my ($l1, $l2, $lmax);
 	#well, the 2 numbers are not independent. et alors?
 	$l2=int(rand($lseq-2-$lpept));
@@ -296,7 +321,7 @@ while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
 	my $trialpept=substr($seq, 0, length($pept));
 	print {*STDLOG} debug=>"trial\t$trialpept";
 	if ($shuffle_reshuffleCleavPept_CRCLen) {
-	  my ($i, $c)=crc($trialpept, 64);
+	  my ($i, $c)=crc($trialpept, $shuffle_reshuffleCleavPept_CRCLen);
 	  $i%=$nbVCRC;
 	  $c%=$maxBitCRC;
 	  if(!($vcrc[$i]->bit_test($c))){
@@ -400,10 +425,8 @@ sub __setInput{
 }
 
 sub computeCRC{
-  lock(%peptsDico);
   while ((my ($head, $seq)=__nextEntry())[0]) {
     {
-      lock($nbentries);
       $nbentries++;
     }
     my @tmpcrcs;
@@ -412,15 +435,19 @@ sub computeCRC{
       my $l=length($_);
       if ($l>=$shuffle_reshuffleCleavPept_minLength) {
 	if ($shuffle_reshuffleCleavPept_CRCLen) {
-	  my ($i, $c)=crc($_, 64);
-	  $i%=$nbVCRC;
-	  $c%=$maxBitCRC;
-	  $vcrc[$_[$i]]->Bit_On($_[$i+1]);
+	  my ($i, $c)=crc($_, $shuffle_reshuffleCleavPept_CRCLen);
+	  if($nbVCRC>1){
+	    #$c%=$maxBitCRC;
+	  }else{
+	    $c=$i;
+	    $i=0;
+	  }
+	  $vcrc[$i]->Bit_On($c);
 	} else {
 	  $peptsDico{$_}=undef;
 	}
+	$nbpept++;
       }
-      $nbpept++;
     }
   }
 }
@@ -451,10 +478,10 @@ void c_swap(char* str, int i1, int i2){
   if (i1>0 && ((str[i1-1]=='K') || (str[i1-1]=='R')) && (str[i1]=='P'))
     return;
   if(str[i1]<'A' || str[i1]>'Z'){
-    printf("PROBLEM i1 %d/%d: %s", i1, i2, str);
+    printf("PROBLEM i1 %d/%d: %s\n", i1, i2, str);
   }
   if(str[i2]<'A' || str[i2]>'Z'){
-    printf("PROBLEM i2 %d/%d: %s", i1, i2, str);
+    printf("PROBLEM i2 %d/%d: %s\n", i1, i2, str);
   }
   char t=str[i2];
   str[i2]=str[i1];
