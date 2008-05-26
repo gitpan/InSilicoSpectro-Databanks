@@ -2,12 +2,7 @@
 use strict;
 use Carp;
 use Pod::Usage;
-BEGIN{
-eval{
-  use Inline 'C';
-}
-print STDERR "$@\n" if ($@);
-}
+
 =head1 NAME
 
 fasta-decoy.pl - decoy input databanks following several moethods
@@ -51,10 +46,8 @@ Reads input fasta file and produce a decoyed databank with several methods:
   #each sequence is randomly shuffled
   fasta-decoy.pl --ac-prefix=DECOY_ --in=mitoch.fasta --method=shuffle --out=mitoch-shuffle.fasta
 
-  #idem, but no tryptic peptide (of length>=6) from the original bank must be found in the random one; 
-  #crc is the number of bit attributed to building the index mechanism, to avoid memory overallocation
-  #crc=33 means 1GB of ram will be used to store the index, 32 means 512MB, 34 means 2GB etc..)
-  fasta-decoy.pl --ac-prefix=DECOY_ --in=mitoch.fasta --method=shuffle --shuffle-reshufflecleavedpeptides-crc=33 --shuffle-reshufflecleavedpeptides --out=mitoch-shuffleplus.fasta
+  #idem, but no tryptic peptide (of length>=6) from the original bank must be found in the random one;
+  => see script fasta-shuffle-notryptic.pl
 
 
 =head1 ARGUMENTS
@@ -80,25 +73,6 @@ Set a key to be prepended before the AC in the randomized bank. By default, it w
 
 =head2 --method=shuffle options
 
-=head3 --shuffle-reshufflecleavedpeptides
-
-Re-shuffle peptides of size >=6 that where detected as cleaved one in original databank
-
-=head3 --shuffle-reshufflecleavedpeptides-minlength [default 6]
-
-Set the size of the peptide to be reshuffled if they already exist
-
-=head3 --shuffle-reshufflecleavedpeptides-crc=int
-
-Building a hash of known cleaved peptide can be quite demanding for memory (uniprot_trembl => ~4GB). Therefore solution is to make an  array containing statements if or not a peptide with corresponding crc code was found.
-
-=head3 --shuffle-cleaveenzyme=regexp
-
-Set a regular expression for the enzyme [default is trypsin: '.*?[KR](?=[^P])']
-
-=head3 --shuffle-testenzyme
-
-Just digest entries with the set enzyme and produces space separated peptides (to check the enzyme)
 
 =head2 --method=markovmodel options
 
@@ -107,6 +81,10 @@ Just digest entries with the set enzyme and produces space separated peptides (t
 Set length of the model (0 means only AA distrbution will be respected, 3 means chains of length 3  distribution etc.). Setting a length >3 can deal to memory burnout.
 
 =head2 misc
+
+=head3 --norandomseed
+
+Random generator seed is set to 0, so 2 run on same data will produce the same result
 
 =head3 --noprogressbar
 
@@ -148,7 +126,6 @@ Alexandre Masselot, www.genebio.com
 =cut
 
 
-
 use SelectSaver;
 use File::Basename;
 use List::Util qw/shuffle/;
@@ -156,10 +133,6 @@ use List::Util qw/shuffle/;
 use Getopt::Long;
 my ($acPrefix, $method, $noProgressBar);
 
-my ($shuffle_reshuffleCleavPept, $shuffle_test);
-my $shuffle_enzyme='.*?[KR](?=[^P])';
-my $shuffle_reshuffleCleavPept_minLength=6;
-my $shuffle_reshuffleCleavPept_CRCLen;
 
 my $markovmodel_level=2;
 
@@ -168,6 +141,7 @@ my $outFile='-';
 my $inFD;
 
 my $outLength;
+my $noSeed;
 
 my($help, $man, $verbose);
 
@@ -178,17 +152,11 @@ if (!GetOptions(
 		"method=s" => \$method,
 		"ac-prefix=s" =>\$acPrefix,
 
-		"shuffle-reshufflecleavedpeptides"=> \$shuffle_reshuffleCleavPept,
-		"shuffle-reshufflecleavedpeptides-minlength=i"=> \$shuffle_reshuffleCleavPept_minLength,
-		"shuffle-reshufflecleavedpeptides-crc=i"=> \$shuffle_reshuffleCleavPept_CRCLen,
-
-		"shuffle-testenzyme"=> \$shuffle_test,
-		"shuffle-cleaveenzyme"=> \$shuffle_enzyme,
-
 		"markovmodel-level=i"=>\$markovmodel_level,
 
 		"outlength=i"=>\$outLength,
 
+		"norandomseed"=>\$noSeed,
 		"noprogressbar" => \$noProgressBar,
 
                 "help" => \$help,
@@ -201,18 +169,10 @@ if (!GetOptions(
   pod2usage(-verbose=>2, -exitval=>2) if(defined $man);
   pod2usage(-verbose=>1, -exitval=>2);
 }
-my $enzInit=$shuffle_enzyme;
-$shuffle_enzyme.='|.+$';
 
-my ($nbVCRC, $modVCRC, $maxBitCRC);
-if($shuffle_reshuffleCleavPept_CRCLen>=32){
-  $nbVCRC=1<<$shuffle_reshuffleCleavPept_CRCLen-31;
-  $maxBitCRC=1<<31;
-}else{
-  $nbVCRC=1;
-  $maxBitCRC=1<<$shuffle_reshuffleCleavPept_CRCLen;
-}
-print STDERR "nb CRC vector=$nbVCRC\nmax bit 4 crc=$maxBitCRC\n" if $verbose;
+my $nbentries=0;
+my $nbpept;
+srand(1)  if $noSeed;
 
 die "no --method=methodname argument (see --help)" unless $method;
 
@@ -239,7 +199,7 @@ if ($outFile ne '-'){
 
 if($method eq 'reverse'){
   $acPrefix ||='REV_';
-  my $nbentries=0;
+  $nbentries=0;
   while((my ($head, $seq)=__nextEntry())[0]){
     $nbentries++;
     $head=~s/>/>$acPrefix/ or die "entry header does not start with '>': $head";
@@ -250,7 +210,7 @@ if($method eq 'reverse'){
   print STDERR "reverted $nbentries\n" if $verbose;
 } elsif ($method eq 'markovmodel') {
   $acPrefix ||='MARKOVMODEL_';
-  my $nbentries=0;
+  $nbentries=0;
   die "--markovmodel-level=int [$markovmodel_level] should be between 0 and 3" unless $markovmodel_level>=0 && $markovmodel_level<=3;
 
   my %chain;			#count and prob 
@@ -319,183 +279,23 @@ if($method eq 'reverse'){
     print __prettySeq($seq)."\n";
   }
 } elsif ($method eq 'shuffle') {
-  unless ($shuffle_reshuffleCleavPept){
-    $acPrefix ||='SHFL_';
-    my $nbentries=0;
-    while ((my ($head, $seq)=__nextEntry())[0]) {
-      $nbentries++;
-      $head=~s/>/>$acPrefix/ or die "entry header does not start with '>': $head";
-      $seq=join ('', shuffle  split(//, $seq));
-      print  "$head\n";
-      print __prettySeq($seq)."\n";
-    }
-    print STDERR "shuffled $nbentries\n" if $verbose;
-  } else {
-    require String::CRC;
-    require Bit::Vector::Overload;
-
-    $acPrefix ||='SHFLPLUS_';
-    my $enz=qr/($shuffle_enzyme)/;
-    my %pepts;
-    my @vcrc = $shuffle_reshuffleCleavPept_CRCLen && Bit::Vector::Overload->new($maxBitCRC, $nbVCRC||1);
-    my $nbentries=0;
-    my $nbpept=0;
-    while ((my ($head, $seq)=__nextEntry())[0]) {
-      $nbentries++;
-      while ($seq=~/$enz/g) {
-	$_=$1;
-	my $l=length($_);
-	if ($l>=$shuffle_reshuffleCleavPept_minLength) {
-	  if ($shuffle_reshuffleCleavPept_CRCLen) {
-	    my ($i, $c)=crc($_, 64);
-	    $i%=$nbVCRC;
-	    $c%=$maxBitCRC;
-	    $vcrc[$i]->Bit_On($c);
-	    $nbpept++;
-	  } else {
-	    $pepts{$_}=undef;
-	  }
-	}
-      }
-    }
-    if($verbose){
-      my $cptbit=0;
-      foreach my $v (@vcrc) {
-	$cptbit+=abs($v);
-      }
-      warn "duplication rate in the CRC index=".sprintf("%2.2f", (1.0*$nbpept)/$cptbit)." ($nbpept/$cptbit) - this include 'natural' duplication when a cleaved peptide is seen more than once in the databank\n" if $verbose;
-    }
-    __setInput();
-    my @histoReshuffled;
-    my $nreshuffled=0;
-    my $nFinalReshuffle=0;
-    my $donotReadNext;
-    my ($head, $seq);
-    my $seqbak;
-    my $nreshuffperseq;
-    #donotReadNext is useed to resshuffle the whole sequence without reading the next one
-    my $iseq=0;
-    while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
-      #print  "(".__LINE__.") [$head]\n[$seq]\n";
-      if ($donotReadNext) {
-	$seq=$seqbak;
-	undef $donotReadNext;
-      } else {
-	$nreshuffperseq=0 ;
-	$seqbak=$seq;
-	$iseq++;
-	last if $outLength && $iseq>$outLength;
-      }
-      #die"TEMP END"  if $iseq>100;
-      if ($nreshuffperseq>$imaxreshuffleFinal) {
-	$head=~/>(\S+)/;
-	if ($pg) {
-	  $pg->message("reshuffling the whole sequence without control [$1]");
-	} else {
-	  warn "reshuffling the whole sequence without control [$1]\n";
-	}
-	$head=~s/>/>$acPrefix/ or die "entry header does not start with '>': $head";
-	my $newseq=join ('', shuffle (split //, $seq));
-	print "$head\n".__prettySeq($newseq)."\n";
-
-	$histoReshuffled[$nreshuffperseq]++;
-	$nFinalReshuffle++;
-	undef $donotReadNext;
-	next;
-      }
-      $seq=join ('', shuffle (split //, $seq));
-      my $newseq="";
-      while ($seq && $seq=~/$enz/) {
-	if ($nreshuffperseq && (($nreshuffperseq % $imaxreshuffle) == 0)) {
-	  $head=~/>(\S+)/;
-	  if ($pg) {
-	    $pg->message("reshuffling the whole sequence [$1] ($nreshuffperseq/$imaxreshuffleFinal)");
-	  } else {
-	    warn "reshuffling the whole sequence [$1] ($nreshuffperseq/$imaxreshuffleFinal)\n";
-	  }
-	  $nreshuffperseq++;
-	  $donotReadNext=1;
-	  last;
-	}
-	my $pept=$1;
-
-	my $reshuffle;
-	if($newseq){
-	  my $charniere=substr($newseq, length($newseq) -1, 1).substr($pept, 0, 1);
-	  if(($charniere=~s/$enz//) && !$charniere){
-	    $reshuffle=1;
-	  }
-	}
-
-
-	unless ($reshuffle){
-	  if (length($pept)<$shuffle_reshuffleCleavPept_minLength) {
-	    $newseq.=$pept;
-	    $seq=substr($seq, length($pept));
-	    next;
-	  }
-	  if ($shuffle_reshuffleCleavPept_CRCLen) {
-	    my ($i, $c)=crc($pept, 64);
-	    $i%=$nbVCRC;
-	    $c%=$maxBitCRC;
-	    $reshuffle =  $vcrc[$i]->bit_test($c);
-	  } else {
-	    $reshuffle = exists $pepts{$_};
-	  }
-	}
-	if ($reshuffle) {
-	  $nreshuffled++;
-	  $nreshuffperseq++;
-	  if($nreshuffperseq<$imaxreshuffle/2){
-	    my $lpept=length($pept);
-	    my $lseq=length($seq);
-	    my ($l1, $l2, $lmax);
-	    foreach (0..100){
-	      #well, the 2 numbers are not independent. et alors?
-	      $l2=int(rand($lseq-2-$lpept));
-	      $l1=$l2%($lpept-2);
-	      $l2+=$lpept;
-	      c_swap($seq, $l1, $l2);
-	      last unless substr($seq,0, $lpept-1)=~/$enzInit/o;
-	      c_swap($seq, $l1, $l2);
-	    }
-	  }elsif ($seq=~/(.{50})(.+)/) {
-	    my ($s1, $s2)=($1, $2);
-	    $seq=join ('', shuffle (split //, $s1)).$s2;
-	  } else {
-	    $seq=join ('', shuffle (split //, $seq));
-	  }
-	  next;
-	} else {
-	  $newseq.=$pept;
-	  $seq=substr($seq, length($pept));
-	  $histoReshuffled[$nreshuffperseq]++;
-	  $nreshuffperseq=0;
-	}
-      }
-      unless($donotReadNext){
-	$head=~s/>/>$acPrefix/ or die "entry header does not start with '>': $head";
-	print "$head\n".__prettySeq($newseq)."\n";
-	$histoReshuffled[$nreshuffperseq]++;
-	#print "(".__LINE__.") [$head]\n[$newseq]\n";
-      }
-    }
-    if ($verbose) {
-      print STDERR "reshuffled pept/nb sequences: $nreshuffled/$nbentries\n";
-      print STDERR "nb final (no-check)  seq reshuffling: $nFinalReshuffle\n";
-      print STDERR "#seq\t#nb reshuffled peptides\n";
-      foreach (0..$#histoReshuffled) {
-	next unless $histoReshuffled[$_];
-	print STDERR "$_\t$histoReshuffled[$_]\n";
-      }
-    }
+  $acPrefix ||='SHFL_';
+  $nbentries=0;
+  while ((my ($head, $seq)=__nextEntry())[0]) {
+    $nbentries++;
+    $head=~s/>/>$acPrefix/ or die "entry header does not start with '>': $head";
+    $seq=join ('', shuffle  split(//, $seq));
+    print  "$head\n";
+    print __prettySeq($seq)."\n";
   }
+  print STDERR "shuffled $nbentries\n" if $verbose;
 } else {
   die "unimplemented method [$method]";
 }
 
 
 sub __nextEntry{
+  lock ($inFD);
   local $/="\n>";
   my $contents=<$inFD>;
   return undef unless $contents;
@@ -543,21 +343,4 @@ sub __setInput{
     open ($inFD, "<$inFile") or die "cannot open for reading [$inFile]: $!";
   }
 }
-
-__END__ 
-time ./fasta-decoy.pl --ac-prefix=DECOY_ --in=/home/alex/tmp/a.fasta --method=shuffle --shuffle-reshufflecleavedpeptides-crc=33 --shuffle-reshufflecleavedpeptides --out=/tmp/a.fasta --outlength=10000
-
-just la partie cksum=>50sec
-
-En dessous, on compte just la partie decoying
-originale => 7.30
-substr_=> 1.30
-
-__C__
-  void c_swap(char* str, int i1, int i2){
-    char t=str[i2];
-    str[i2]=str[i1];
-    str[i1]=t;
-  }
-
 

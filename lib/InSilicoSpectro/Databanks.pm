@@ -58,6 +58,6 @@ under the same terms as Perl itself.
 
 =cut
 
-our $VERSION = '0.0.37';
+our $VERSION = '0.0.38';
 
 1; # End of InSilicoSpectro::Databanks

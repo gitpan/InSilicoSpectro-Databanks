@@ -7,6 +7,7 @@ WriteMakefile
           'NAME' => 'InSilicoSpectro::Databanks',
           'EXE_FILES' => [
                            'scripts/fasta-decoy.pl',
+                           'scripts/fasta-shuffle-notryptic.pl',
                            'scripts/ncbinr2phenyxfasta.pl',
                            'scripts/uniprotdat2fasta.pl'
                          ],
