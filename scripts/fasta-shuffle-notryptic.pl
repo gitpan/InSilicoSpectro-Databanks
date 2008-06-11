@@ -101,6 +101,7 @@ use SelectSaver;
 use File::Basename;
 use List::Util qw/shuffle/;
 use Log::StdLog;
+use Log::StdLog;
 
 
 use Getopt::Long;
@@ -229,14 +230,18 @@ my $nreshuffperseq;
 my $iseq=0;
 while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
   #print  "(".__LINE__.") [$head]\n[$seq]\n";
-#   if($head=~/^>IPI00002335\b/){
+#   if($head=~/^>A0BIX5\|A0BIX5_PARTE\b/){
 #     Log::StdLog->import({level=>'debug', handle => \*STDERR});
+#     my $dummy=<STDIN>;
 #   }else{
 #     Log::StdLog->import({level=>$verbose?'info':'warn', handle => \*STDERR});
 #   }
   print {*STDLOG} debug=>$head;
+  print {*STDLOG} debug=>$seq;
 
   if ($donotReadNext) {
+    print {*STDLOG} debug=>"donotReadNext: seq bak $seqbak";
+
     $seq=$seqbak;
     undef $donotReadNext;
   } else {
@@ -245,8 +250,10 @@ while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
     $iseq++;
     last if $outLength && $iseq>$outLength;
   }
-  #die"TEMP END"  if $iseq>100;
-  if ($nreshuffperseq>$imaxreshuffleFinal) {
+   #die"TEMP END"  if $iseq>100;
+   print {*STDLOG} debug => __LINE__.": ($nreshuffperseq>$imaxreshuffleFinal)";
+   if ($nreshuffperseq>$imaxreshuffleFinal) {
+
     $head=~/>(\S+)/;
     if ($pg) {
       $pg->message("reshuffling the whole sequence without control [$1]");
@@ -266,8 +273,10 @@ while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
   my $newseq="";
   while ($seq && $seq=~ /$trypsinQR/) {
 #    warn "$seq";
+    print {*STDLOG} debug =>  __LINE__.": $seq";
     if ($nreshuffperseq && (($nreshuffperseq % $imaxreshuffle) == 0)) {
       $head=~/>(\S+)/;
+      print {*STDLOG} debug =>  __LINE__.": reshuffling the whole sequence [$1] ($nreshuffperseq/$imaxreshuffleFinal)";
       if ($pg) {
 	$pg->message("reshuffling the whole sequence [$1] ($nreshuffperseq/$imaxreshuffleFinal)");
       } else {
@@ -300,7 +309,7 @@ while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
       $reshuffle = exists $peptsDico{$pept};
     }
     if ($reshuffle) {
-      print {*STDLOG} debug=>"reshuf\t$pept";
+      print {*STDLOG} debug=>"($nreshuffperseq<$imaxreshuffle/2) reshuf\t$pept";
       while($nreshuffperseq<$imaxreshuffle/2) {
 	print {*STDLOG} debug=> "looping\t$pept";
 	#warn "($nreshuffperseq<$imaxreshuffle/2)";
@@ -339,12 +348,16 @@ while ($donotReadNext || (($head, $seq)=__nextEntry())[0]) {
 	}
       }
       if($reshuffle){
+	$nreshuffled++;
+	$nreshuffperseq++;
+
 	if ($seq=~/(.{50})(.+)/) {
 	  my ($s1, $s2)=($1, $2);
 	  $seq=join ('', shuffle (split //, $s1)).$s2;
 	} else {
 	  $seq=join ('', shuffle (split //, $seq));
 	}
+	print {*STDLOG} debug=>"($nreshuffperseq<$imaxreshuffle/2) reshuffling whole seq $seq";
 	next;
       }
     }
