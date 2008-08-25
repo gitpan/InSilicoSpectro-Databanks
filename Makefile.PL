@@ -13,6 +13,7 @@ WriteMakefile
                          ],
           'VERSION_FROM' => './lib/InSilicoSpectro/Databanks.pm',
           'PREREQ_PM' => {
+                           'Log::StdLog' => 0,
                            'LWP::Simple' => 0,
                            'Object::InsideOut' => 0
                          }

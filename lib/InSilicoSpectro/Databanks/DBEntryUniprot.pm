@@ -207,7 +207,7 @@ use File::Basename;
     $self->clear_variants();
     $self->__FTLines({});
     my $acRead;
-    my $descr;
+    my @descr;
     foreach (split /\n/, $dat) {
       last if /^\/\//;
       undef $curFTLine if substr($_, 3, 10)=~/\S/;
@@ -233,9 +233,8 @@ use File::Basename;
 	my $v=$1;
 	$self->AC($v);
 	$acRead=1;
-      } elsif (/^DE\s+(.*)/) {
-	$descr.=" " if $descr;
-	$descr.=$1;
+      } elsif (/^DE\s+(.*)\s*/) {
+	push @descr, $1;
       } elsif (/^OX\s+NCBI_TaxID=(\d+);/) {
 	my $v=$1;
 	$self->ncbiTaxid($v);
@@ -277,6 +276,14 @@ use File::Basename;
       }
     }
     $self->sequence($seq);
+
+    #parse description for multine uniprot dat format;
+    my $descr;
+    foreach(@descr){
+      last if /^Includes:/;
+      $descr=$1 if /RecName: Full=(.*);/;
+      $descr.=" ($1)" if /Short=(.*);/;
+    }
     $self->description($descr);
 
     #rescan $self->{FTLines}

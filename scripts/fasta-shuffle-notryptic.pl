@@ -101,7 +101,6 @@ use SelectSaver;
 use File::Basename;
 use List::Util qw/shuffle/;
 use Log::StdLog;
-use Log::StdLog;
 
 
 use Getopt::Long;
