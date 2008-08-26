@@ -284,6 +284,7 @@ use File::Basename;
       $descr=$1 if /RecName: Full=(.*);/;
       $descr.=" ($1)" if /Short=(.*);/;
     }
+    $descr=join (" ", @descr) unless $descr;
     $self->description($descr);
 
     #rescan $self->{FTLines}
